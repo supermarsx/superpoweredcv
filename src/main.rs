@@ -41,6 +41,7 @@ fn main() {
                 prompt_template: Some("prompts/ats_prompt.txt".into()),
             },
             allow_aggressive_override: true,
+            target: Some("candidate_scoring_service_v2".into()),
         },
         metrics: vec![
             MetricSpec {

@@ -1,6 +1,6 @@
 use crate::red_team::ProfileConfig;
 use crate::templates::InjectionTemplate;
-use crate::{Result, RedTeamError};
+use crate::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -82,10 +82,4 @@ pub fn hash_bytes(bytes: impl AsRef<[u8]>) -> String {
     hasher.update(bytes.as_ref());
     let digest = hasher.finalize();
     hex::encode(digest)
-}
-
-impl From<std::io::Error> for RedTeamError {
-    fn from(value: std::io::Error) -> Self {
-        RedTeamError::Io(value)
-    }
 }

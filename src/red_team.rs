@@ -1,4 +1,4 @@
-use crate::pdf::{PdfMutationRequest, PdfMutator, PdfMutationResult, StubPdfMutator};
+use crate::pdf::{PdfMutationRequest, PdfMutator, StubPdfMutator};
 use crate::pipeline::{LoggingConfig, MetricSpec, PipelineConfig};
 use crate::templates::InjectionTemplate;
 use crate::{Result, RedTeamError};
@@ -169,61 +169,112 @@ impl RedTeamEngine {
         RedTeamEngine { templates: map }
     }
 
-    pub fn generate_variants(&self, scenario: &InjectionScenario) -> Result<Vec<PdfVariant>> {
+    fn template(&self, id: &str) -> Result<&InjectionTemplate> {
+        self.templates
+            .get(id)
+            .ok_or_else(|| RedTeamError::MissingTemplate(id.to_string()))
+    }
+
+    fn build_variant_id(profile: &ProfileConfig, template: &InjectionTemplate) -> String {
+        format!("{}_{}", profile.id(), template.id.replace('.', "_"))
+    }
+
+    pub fn run_with(
+        &self,
+        scenario: &InjectionScenario,
+        mutator: &dyn PdfMutator,
+        pipeline: &dyn PipelineExecutor,
+    ) -> Result<ScenarioReport> {
         if scenario.injections.is_empty() {
             return Err(RedTeamError::InvalidScenario(
                 "scenario requires at least one injection".into(),
             ));
         }
 
-        let mut variants = Vec::new();
+        let mut impacts = Vec::new();
         for injection in &scenario.injections {
-            let template = self
-                .templates
-                .get(&injection.template_id)
-                .ok_or_else(|| RedTeamError::MissingTemplate(injection.template_id.clone()))?;
+            let template = self.template(&injection.template_id)?;
+            let variant_id = Self::build_variant_id(&injection.profile, template);
 
-            let variant_id = format!(
-                "{}_{}",
-                injection.profile.id(),
-                template.id.replace('.', "_")
-            );
+            let mutation = mutator.mutate(PdfMutationRequest {
+                base_pdf: scenario.base_pdf.clone(),
+                profile: injection.profile.clone(),
+                template: template.clone(),
+                watermark: Some("RED TEAM / TEST ONLY".into()),
+                variant_id: Some(variant_id.clone()),
+            })?;
 
-            variants.push(PdfVariant {
-                variant_id,
+            let variant = PdfVariant {
+                variant_id: mutation.variant_id.clone(),
                 profiles: vec![injection.profile.id().to_string()],
                 templates: vec![template.id.clone()],
                 base_pdf: scenario.base_pdf.clone(),
-                mutated_pdf: None,
-            });
+                mutated_pdf: Some(mutation.mutated_pdf.clone()),
+                variant_hash: mutation.variant_hash.clone(),
+                watermark_applied: mutation.watermark_applied,
+            };
+
+            let mut impact = pipeline.evaluate(variant.clone(), scenario)?;
+            if impact.mutated_pdf.is_none() {
+                impact.mutated_pdf = variant.mutated_pdf.clone();
+            }
+            if impact.variant_hash.is_none() {
+                impact.variant_hash = variant.variant_hash.clone();
+            }
+            if impact.profiles.is_empty() {
+                impact.profiles = variant.profiles.clone();
+            }
+            if impact.templates.is_empty() {
+                impact.templates = variant.templates.clone();
+            }
+
+            impacts.push(impact);
         }
-
-        Ok(variants)
-    }
-
-    pub fn run_scenario(&self, scenario: &InjectionScenario) -> Result<ScenarioReport> {
-        let variants = self.generate_variants(scenario)?;
-
-        // Placeholder to show the structure; PDF mutation and pipeline calls are
-        // implemented by downstream services.
-        let impacts = variants
-            .into_iter()
-            .map(|variant| VariantImpact {
-                variant_id: variant.variant_id.clone(),
-                profiles: variant.profiles.clone(),
-                templates: variant.templates.clone(),
-                score_before: None,
-                score_after: None,
-                classification_before: None,
-                classification_after: None,
-                llm_response_sample: None,
-            })
-            .collect();
 
         Ok(ScenarioReport {
             scenario_id: scenario.scenario_id.clone(),
-            target: None,
+            target: scenario.pipeline.target().map(|t| t.to_string()),
             variants: impacts,
+        })
+    }
+
+    pub fn run_scenario(&self, scenario: &InjectionScenario) -> Result<ScenarioReport> {
+        let mutator = StubPdfMutator::new("target/variants");
+        let pipeline = NoopPipelineExecutor;
+        self.run_with(scenario, &mutator, &pipeline)
+    }
+}
+
+pub trait PipelineExecutor {
+    fn evaluate(
+        &self,
+        variant: PdfVariant,
+        scenario: &InjectionScenario,
+    ) -> Result<VariantImpact>;
+}
+
+/// Placeholder pipeline executor that leaves scoring/classification empty but
+/// threads through artifact metadata.
+pub struct NoopPipelineExecutor;
+
+impl PipelineExecutor for NoopPipelineExecutor {
+    fn evaluate(
+        &self,
+        variant: PdfVariant,
+        _scenario: &InjectionScenario,
+    ) -> Result<VariantImpact> {
+        Ok(VariantImpact {
+            variant_id: variant.variant_id,
+            score_before: None,
+            score_after: None,
+            classification_before: None,
+            classification_after: None,
+            llm_response_sample: None,
+            profiles: variant.profiles,
+            templates: variant.templates,
+            mutated_pdf: variant.mutated_pdf,
+            variant_hash: variant.variant_hash,
+            notes: vec!["pipeline execution skipped (noop executor)".into()],
         })
     }
 }

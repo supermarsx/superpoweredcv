@@ -1,4 +1,5 @@
 pub mod pipeline;
+pub mod pdf;
 pub mod profile;
 pub mod red_team;
 pub mod templates;
