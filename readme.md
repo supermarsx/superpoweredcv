@@ -1,5 +1,5 @@
-superpoweredCV (Rust skeleton)
-==============================
+
+![SuperpoweredCV Banner](superpoweredcv-banner.png)
 
 This crate starts implementing the spec for superpoweredCV and the PDF prompt-injection red-team module. It provides:
 - Canonical profile data structures matching the LinkedIn ingest/ATS metadata model.

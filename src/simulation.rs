@@ -1,7 +1,7 @@
 use crate::pdf::{PdfMutationRequest, PdfMutator, StubPdfMutator};
 use crate::pipeline::{LoggingConfig, MetricSpec, PipelineConfig};
 use crate::templates::InjectionTemplate;
-use crate::{Result, RedTeamError};
+use crate::{Result, SimulationError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -243,25 +243,25 @@ pub struct ScenarioReport {
     pub variants: Vec<VariantImpact>,
 }
 
-/// The main engine for running Red Team scenarios.
-pub struct RedTeamEngine {
+/// The main engine for running Simulation scenarios.
+pub struct SimulationEngine {
     templates: HashMap<String, InjectionTemplate>,
 }
 
-impl RedTeamEngine {
-    /// Creates a new `RedTeamEngine` with the provided templates.
+impl SimulationEngine {
+    /// Creates a new `SimulationEngine` with the provided templates.
     pub fn new(templates: impl IntoIterator<Item = InjectionTemplate>) -> Self {
         let map = templates
             .into_iter()
             .map(|t| (t.id.clone(), t))
             .collect::<HashMap<_, _>>();
-        RedTeamEngine { templates: map }
+        SimulationEngine { templates: map }
     }
 
     fn template(&self, id: &str) -> Result<&InjectionTemplate> {
         self.templates
             .get(id)
-            .ok_or_else(|| RedTeamError::MissingTemplate(id.to_string()))
+            .ok_or_else(|| SimulationError::MissingTemplate(id.to_string()))
     }
 
     fn build_variant_id(profile: &ProfileConfig, template: &InjectionTemplate) -> String {
@@ -276,7 +276,7 @@ impl RedTeamEngine {
         pipeline: &dyn PipelineExecutor,
     ) -> Result<ScenarioReport> {
         if scenario.injections.is_empty() {
-            return Err(RedTeamError::InvalidScenario(
+            return Err(SimulationError::InvalidScenario(
                 "scenario requires at least one injection".into(),
             ));
         }

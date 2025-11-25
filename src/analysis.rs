@@ -1,7 +1,7 @@
-use crate::pdf::{PdfMutationRequest, PdfMutator, StubPdfMutator};
-use crate::pipeline::{LoggingConfig, MetricSpec, PipelineConfig};
-use crate::templates::InjectionTemplate;
-use crate::{Result, RedTeamError};
+use crate::pdf::{PdfMutationRequest, PdfMutator, RealPdfMutator};
+use crate::pipeline::{LoggingConfig, MetricSpec, PipelineConfig, PipelineType};
+use crate::templates::AnalysisTemplate;
+use crate::{Result, AnalysisError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -162,24 +162,24 @@ impl ProfileConfig {
     }
 }
 
-/// Plan for a single injection.
+/// Plan for a single analysis step.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct InjectionPlan {
+pub struct AnalysisPlan {
     /// The profile configuration to use.
     pub profile: ProfileConfig,
     /// The ID of the template to use.
     pub template_id: String,
 }
 
-/// Defines a complete injection scenario.
+/// Defines a complete analysis scenario.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InjectionScenario {
+pub struct AnalysisScenario {
     /// Unique ID for the scenario.
     pub scenario_id: String,
     /// Path to the base PDF file.
     pub base_pdf: PathBuf,
-    /// List of injections to perform.
-    pub injections: Vec<InjectionPlan>,
+    /// List of analysis plans to perform.
+    pub plans: Vec<AnalysisPlan>,
     /// Configuration for the evaluation pipeline.
     pub pipeline: PipelineConfig,
     /// List of metrics to track.
@@ -243,59 +243,59 @@ pub struct ScenarioReport {
     pub variants: Vec<VariantImpact>,
 }
 
-/// The main engine for running Red Team scenarios.
-pub struct RedTeamEngine {
-    templates: HashMap<String, InjectionTemplate>,
+/// The main engine for running Analysis scenarios.
+pub struct AnalysisEngine {
+    templates: HashMap<String, AnalysisTemplate>,
 }
 
-impl RedTeamEngine {
-    /// Creates a new `RedTeamEngine` with the provided templates.
-    pub fn new(templates: impl IntoIterator<Item = InjectionTemplate>) -> Self {
+impl AnalysisEngine {
+    /// Creates a new `AnalysisEngine` with the provided templates.
+    pub fn new(templates: impl IntoIterator<Item = AnalysisTemplate>) -> Self {
         let map = templates
             .into_iter()
             .map(|t| (t.id.clone(), t))
             .collect::<HashMap<_, _>>();
-        RedTeamEngine { templates: map }
+        AnalysisEngine { templates: map }
     }
 
-    fn template(&self, id: &str) -> Result<&InjectionTemplate> {
+    fn template(&self, id: &str) -> Result<&AnalysisTemplate> {
         self.templates
             .get(id)
-            .ok_or_else(|| RedTeamError::MissingTemplate(id.to_string()))
+            .ok_or_else(|| AnalysisError::MissingTemplate(id.to_string()))
     }
 
-    fn build_variant_id(profile: &ProfileConfig, template: &InjectionTemplate) -> String {
+    fn build_variant_id(profile: &ProfileConfig, template: &AnalysisTemplate) -> String {
         format!("{}_{}", profile.id(), template.id.replace('.', "_"))
     }
 
     /// Runs a scenario with a specific mutator and pipeline executor.
     pub fn run_with(
         &self,
-        scenario: &InjectionScenario,
+        scenario: &AnalysisScenario,
         mutator: &dyn PdfMutator,
         pipeline: &dyn PipelineExecutor,
     ) -> Result<ScenarioReport> {
-        if scenario.injections.is_empty() {
-            return Err(RedTeamError::InvalidScenario(
-                "scenario requires at least one injection".into(),
+        if scenario.plans.is_empty() {
+            return Err(AnalysisError::InvalidScenario(
+                "scenario requires at least one plan".into(),
             ));
         }
 
         let mut impacts = Vec::new();
-        for injection in &scenario.injections {
-            let template = self.template(&injection.template_id)?;
-            let variant_id = Self::build_variant_id(&injection.profile, template);
+        for plan in &scenario.plans {
+            let template = self.template(&plan.template_id)?;
+            let variant_id = Self::build_variant_id(&plan.profile, template);
 
             let mutation = mutator.mutate(PdfMutationRequest {
                 base_pdf: scenario.base_pdf.clone(),
-                profile: injection.profile.clone(),
+                profile: plan.profile.clone(),
                 template: template.clone(),
                 variant_id: Some(variant_id.clone()),
             })?;
 
             let variant = PdfVariant {
                 variant_id: mutation.variant_id.clone(),
-                profiles: vec![injection.profile.id().to_string()],
+                profiles: vec![plan.profile.id().to_string()],
                 templates: vec![template.id.clone()],
                 base_pdf: scenario.base_pdf.clone(),
                 mutated_pdf: Some(mutation.mutated_pdf.clone()),
@@ -326,10 +326,10 @@ impl RedTeamEngine {
         })
     }
 
-    /// Runs a scenario using the default stub mutator and no-op pipeline.
-    pub fn run_scenario(&self, scenario: &InjectionScenario) -> Result<ScenarioReport> {
-        let mutator = StubPdfMutator::new("target/variants");
-        let pipeline = NoopPipelineExecutor;
+    /// Runs a scenario using the real mutator and http pipeline executor.
+    pub fn run_scenario(&self, scenario: &AnalysisScenario) -> Result<ScenarioReport> {
+        let mutator = RealPdfMutator::new("target/variants");
+        let pipeline = HttpPipelineExecutor::new();
         self.run_with(scenario, &mutator, &pipeline)
     }
 }
@@ -340,7 +340,7 @@ pub trait PipelineExecutor {
     fn evaluate(
         &self,
         variant: PdfVariant,
-        scenario: &InjectionScenario,
+        scenario: &AnalysisScenario,
     ) -> Result<VariantImpact>;
 }
 
@@ -352,7 +352,7 @@ impl PipelineExecutor for NoopPipelineExecutor {
     fn evaluate(
         &self,
         variant: PdfVariant,
-        _scenario: &InjectionScenario,
+        _scenario: &AnalysisScenario,
     ) -> Result<VariantImpact> {
         Ok(VariantImpact {
             variant_id: variant.variant_id,
@@ -367,5 +367,94 @@ impl PipelineExecutor for NoopPipelineExecutor {
             variant_hash: variant.variant_hash,
             notes: vec!["pipeline execution skipped (noop executor)".into()],
         })
+    }
+}
+
+/// Pipeline executor that sends requests to an HTTP endpoint.
+pub struct HttpPipelineExecutor {
+    client: reqwest::blocking::Client,
+}
+
+impl HttpPipelineExecutor {
+    /// Creates a new HttpPipelineExecutor.
+    pub fn new() -> Self {
+        HttpPipelineExecutor {
+            client: reqwest::blocking::Client::new(),
+        }
+    }
+}
+
+impl PipelineExecutor for HttpPipelineExecutor {
+    fn evaluate(
+        &self,
+        variant: PdfVariant,
+        scenario: &AnalysisScenario,
+    ) -> Result<VariantImpact> {
+        match &scenario.pipeline.pipeline_type {
+            PipelineType::HttpLlm { endpoint, .. } => {
+                // If the endpoint is the example one, skip execution to avoid errors
+                if endpoint.contains("example-ats-llm") {
+                     return Ok(VariantImpact {
+                        variant_id: variant.variant_id,
+                        score_before: None,
+                        score_after: None,
+                        classification_before: None,
+                        classification_after: None,
+                        llm_response_sample: None,
+                        profiles: variant.profiles,
+                        templates: variant.templates,
+                        mutated_pdf: variant.mutated_pdf,
+                        variant_hash: variant.variant_hash,
+                        notes: vec!["HttpPipelineExecutor: Skipped example endpoint".into()],
+                    });
+                }
+
+                // Prepare the request
+                let file_path = variant.mutated_pdf.as_ref()
+                    .ok_or_else(|| crate::AnalysisError::InvalidScenario("Missing mutated PDF path".into()))?;
+                
+                let form = reqwest::blocking::multipart::Form::new()
+                    .file("file", file_path)
+                    .map_err(|e| crate::AnalysisError::Io(e))?;
+
+                let response = self.client.post(endpoint)
+                    .multipart(form)
+                    .send()
+                    .map_err(|e| crate::AnalysisError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+
+                let status = response.status();
+                let text = response.text().unwrap_or_default();
+
+                Ok(VariantImpact {
+                    variant_id: variant.variant_id,
+                    score_before: None,
+                    score_after: None,
+                    classification_before: None,
+                    classification_after: None,
+                    llm_response_sample: Some(text),
+                    profiles: variant.profiles,
+                    templates: variant.templates,
+                    mutated_pdf: variant.mutated_pdf,
+                    variant_hash: variant.variant_hash,
+                    notes: vec![format!("HttpPipelineExecutor: POST {} -> {}", endpoint, status)],
+                })
+            }
+            _ => {
+                // Fallback to no-op
+                 Ok(VariantImpact {
+                    variant_id: variant.variant_id,
+                    score_before: None,
+                    score_after: None,
+                    classification_before: None,
+                    classification_after: None,
+                    llm_response_sample: None,
+                    profiles: variant.profiles,
+                    templates: variant.templates,
+                    mutated_pdf: variant.mutated_pdf,
+                    variant_hash: variant.variant_hash,
+                    notes: vec!["HttpPipelineExecutor: Unsupported pipeline type".into()],
+                })
+            }
+        }
     }
 }
