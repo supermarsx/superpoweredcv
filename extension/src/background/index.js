@@ -41,62 +41,65 @@ async function handleStartScrape(tabId) {
 
         // 1. Scrape Main Page
         updateStatus('Scraping main profile...');
-        const mainResult = await sendMessageToTab(tabId, { action: 'scrape_main' });
+        
         // Ensure content script is ready
+        const ready = await ensureContentScriptReady(tabId);
+        if (!ready) {
+            throw new Error('Could not connect to content script. Please refresh the page.');
+        }
+
+        const mainResult = await sendMessageToTab(tabId, { action: 'scrape_main' });
+        
         if (!mainResult || !mainResult.profile) {
             throw new Error('Failed to scrape main profile');
-        }onst mainResult = await sendMessageToTab(tabId, { action: 'scrape_main' });
-        
-        scrapingState.data = mainResult.profile;{
-        scrapingState.queue = mainResult.sectionsToScrape || [];se refresh the page.');
         }
+
+        scrapingState.data = mainResult.profile;
+        scrapingState.queue = mainResult.sectionsToScrape || [];
+
         // 2. Process Queue
         while (scrapingState.queue.length > 0) {
-            const item = scrapingState.queue.shift();rape || [];
+            const item = scrapingState.queue.shift();
             updateStatus(`Navigating to ${item.key}...`);
-            . Process Queue
-            // NavigateState.queue.length > 0) {
+            
+            // Navigate
             await chrome.tabs.update(tabId, { url: item.url });
-            await waitForTabLoad(tabId);${item.key}...`);
+            await waitForTabLoad(tabId);
             
             // Humanized Wait
             const delay = Math.floor(Math.random() * 2000) + 2000; // 2-4s
             updateStatus(`Reading ${item.key} (waiting ${delay}ms)...`);
             await new Promise(r => setTimeout(r, delay));
-            // Humanized Wait
-            // Scrape Sectionh.floor(Math.random() * 2000) + 2000; // 2-4s
+
+            // Scrape Section
             const sectionResult = await sendMessageToTab(tabId, { action: 'scrape_section', section: item.key });
-            if (sectionResult && sectionResult.data) {));
-                scrapingState.data[item.key] = sectionResult.data;
-            }/ Scrape Section
-        }   const sectionResult = await sendMessageToTab(tabId, { action: 'scrape_section', section: item.key });
             if (sectionResult && sectionResult.data) {
-        // 3. Return to original URLtem.key] = sectionResult.data;
+                scrapingState.data[item.key] = sectionResult.data;
+            }
+        }
+
+        // 3. Return to original URL
         updateStatus('Returning to profile...');
         await chrome.tabs.update(tabId, { url: scrapingState.originalUrl });
         await waitForTabLoad(tabId);
-        // 3. Return to original URL
-        updateStatus('Done!');g to profile...');
-        scrapingState.isRunning = false;{ url: scrapingState.originalUrl });
-        await waitForTabLoad(tabId);
+
+        updateStatus('Done!');
+        scrapingState.isRunning = false;
+        
         // Notify Popup of completion
         chrome.runtime.sendMessage({ action: 'scrape_complete', data: scrapingState.data });
-        scrapingState.isRunning = false;
+        
         return { success: true };
-        // Notify Popup of completion
-    } catch (error) {e.sendMessage({ action: 'scrape_complete', data: scrapingState.data });
+
+    } catch (error) {
         console.error('Scraping error:', error);
         scrapingState.isRunning = false;
         scrapingState.status = 'Error: ' + error.message;
         chrome.runtime.sendMessage({ action: 'scrape_error', error: error.message });
-        return { error: error.message }; error);
-    }   scrapingState.isRunning = false;
-}       scrapingState.status = 'Error: ' + error.message;
-        chrome.runtime.sendMessage({ action: 'scrape_error', error: error.message });
-function updateStatus(msg) {r.message };
-    scrapingState.status = msg;
-    chrome.runtime.sendMessage({ action: 'progress', message: msg });
+        return { error: error.message };
+    }
 }
+
 function updateStatus(msg) {
     scrapingState.status = msg;
     chrome.runtime.sendMessage({ action: 'progress', message: msg });
@@ -167,18 +170,4 @@ async function ensureContentScriptReady(tabId) {
         console.error('Injection failed:', e);
         return false;
     }
-}
-
-
-
-
-
-
-
-
-
-
-
-}    return false;    }        attempts++;        await new Promise(r => setTimeout(r, 500));        if (response && response.status === 'alive') return true;        const response = await sendMessageToTab(tabId, { action: 'ping' });    while (attempts < 5) {    let attempts = 0;async function ensureContentScriptReady(tabId) {        chrome.tabs.onUpdated.addListener(listener);
-    });
 }

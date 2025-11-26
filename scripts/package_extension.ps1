@@ -15,7 +15,10 @@ if (-not (Test-Path -Path $srcDir)) {
 }
 
 # Create dist directory
-if (Test-Path -Path $distDir) { Remove-Item -Path $distDir -Recurse -Force }
+if (Test-Path -Path $distDir) { 
+    Write-Host "Cleaning up old dist directory..." -ForegroundColor Yellow
+    Remove-Item -Path $distDir -Recurse -Force 
+}
 New-Item -ItemType Directory -Path $distDir | Out-Null
 
 foreach ($browser in $browsers) {
