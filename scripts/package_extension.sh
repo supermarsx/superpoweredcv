@@ -1,57 +1,38 @@
 #!/bin/bash
 set -e
 
-# Directory containing the extension source
 SRC_DIR="extension"
 DIST_DIR="dist"
+BROWSERS=("chrome" "firefox" "edge" "safari")
 
-# Ensure we are in the project root
 if [ ! -d "$SRC_DIR" ]; then
     echo "Error: 'extension' directory not found. Please run this script from the project root."
     exit 1
 fi
 
-# Create dist directory
+rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
-echo "Packaging for Chrome..."
-# Create a temporary directory for Chrome build
-rm -rf "$DIST_DIR/chrome_build"
-mkdir -p "$DIST_DIR/chrome_build"
+for browser in "${BROWSERS[@]}"; do
+    echo "Packaging for $browser..."
+    BUILD_DIR="$DIST_DIR/${browser}_build"
+    mkdir -p "$BUILD_DIR"
 
-# Copy files
-cp -r "$SRC_DIR/"* "$DIST_DIR/chrome_build/"
+    # Copy src directory
+    cp -r "$SRC_DIR/src" "$BUILD_DIR/"
 
-# Remove Firefox manifest
-rm "$DIST_DIR/chrome_build/manifest-firefox.json"
+    # Copy manifest
+    MANIFEST_SOURCE="$SRC_DIR/manifests/$browser.json"
+    if [ -f "$MANIFEST_SOURCE" ]; then
+        cp "$MANIFEST_SOURCE" "$BUILD_DIR/manifest.json"
+    else
+        echo "Warning: Manifest for $browser not found at $MANIFEST_SOURCE"
+    fi
 
-# Zip it
-# We use pushd/popd to zip relative to the build directory
-pushd "$DIST_DIR/chrome_build" > /dev/null
-zip -r "../superpoweredcv-chrome.zip" .
-popd > /dev/null
+    # Zip it
+    pushd "$BUILD_DIR" > /dev/null
+    zip -r "../superpoweredcv-$browser.zip" .
+    popd > /dev/null
 
-# Clean up
-rm -rf "$DIST_DIR/chrome_build"
-echo "Created $DIST_DIR/superpoweredcv-chrome.zip"
-
-echo "Packaging for Firefox..."
-# Create a temporary directory for Firefox build
-rm -rf "$DIST_DIR/firefox_build"
-mkdir -p "$DIST_DIR/firefox_build"
-
-# Copy files
-cp -r "$SRC_DIR/"* "$DIST_DIR/firefox_build/"
-
-# Remove Chrome manifest and rename Firefox manifest
-rm "$DIST_DIR/firefox_build/manifest.json"
-mv "$DIST_DIR/firefox_build/manifest-firefox.json" "$DIST_DIR/firefox_build/manifest.json"
-
-# Zip it
-pushd "$DIST_DIR/firefox_build" > /dev/null
-zip -r "../superpoweredcv-firefox.zip" .
-popd > /dev/null
-
-# Clean up
-rm -rf "$DIST_DIR/firefox_build"
-echo "Created $DIST_DIR/superpoweredcv-firefox.zip"
+    echo "Created $DIST_DIR/superpoweredcv-$browser.zip"
+done

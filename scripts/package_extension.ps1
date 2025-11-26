@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $srcDir = "extension"
 $distDir = "dist"
+$browsers = @("chrome", "firefox", "edge", "safari")
 
 # Ensure we are in the project root
 if (-not (Test-Path -Path $srcDir)) {
@@ -10,47 +11,28 @@ if (-not (Test-Path -Path $srcDir)) {
 }
 
 # Create dist directory
-if (-not (Test-Path -Path $distDir)) {
-    New-Item -ItemType Directory -Path $distDir | Out-Null
+if (Test-Path -Path $distDir) { Remove-Item -Path $distDir -Recurse -Force }
+New-Item -ItemType Directory -Path $distDir | Out-Null
+
+foreach ($browser in $browsers) {
+    Write-Host "Packaging for $browser..."
+    $buildDir = Join-Path $distDir "${browser}_build"
+    New-Item -ItemType Directory -Path $buildDir | Out-Null
+
+    # Copy src directory
+    Copy-Item -Path "$srcDir\src" -Destination $buildDir -Recurse
+
+    # Copy manifest
+    $manifestSource = "$srcDir\manifests\$browser.json"
+    if (Test-Path -Path $manifestSource) {
+        Copy-Item -Path $manifestSource -Destination "$buildDir\manifest.json"
+    } else {
+        Write-Warning "Manifest for $browser not found at $manifestSource"
+    }
+
+    # Zip it
+    $zipFile = Join-Path $distDir "superpoweredcv-$browser.zip"
+    Compress-Archive -Path "$buildDir\*" -DestinationPath $zipFile
+    
+    Write-Host "Created $zipFile"
 }
-
-Write-Host "Packaging for Chrome..."
-$chromeBuildDir = Join-Path $distDir "chrome_build"
-if (Test-Path -Path $chromeBuildDir) { Remove-Item -Path $chromeBuildDir -Recurse -Force }
-New-Item -ItemType Directory -Path $chromeBuildDir | Out-Null
-
-# Copy files
-Copy-Item -Path "$srcDir\*" -Destination $chromeBuildDir -Recurse
-
-# Remove Firefox manifest
-Remove-Item -Path "$chromeBuildDir\manifest-firefox.json" -ErrorAction SilentlyContinue
-
-# Zip it
-$chromeZip = Join-Path $distDir "superpoweredcv-chrome.zip"
-if (Test-Path -Path $chromeZip) { Remove-Item -Path $chromeZip -Force }
-Compress-Archive -Path "$chromeBuildDir\*" -DestinationPath $chromeZip
-
-# Clean up
-Remove-Item -Path $chromeBuildDir -Recurse -Force
-Write-Host "Created $chromeZip"
-
-Write-Host "Packaging for Firefox..."
-$firefoxBuildDir = Join-Path $distDir "firefox_build"
-if (Test-Path -Path $firefoxBuildDir) { Remove-Item -Path $firefoxBuildDir -Recurse -Force }
-New-Item -ItemType Directory -Path $firefoxBuildDir | Out-Null
-
-# Copy files
-Copy-Item -Path "$srcDir\*" -Destination $firefoxBuildDir -Recurse
-
-# Remove Chrome manifest and rename Firefox manifest
-Remove-Item -Path "$firefoxBuildDir\manifest.json" -ErrorAction SilentlyContinue
-Rename-Item -Path "$firefoxBuildDir\manifest-firefox.json" -NewName "manifest.json"
-
-# Zip it
-$firefoxZip = Join-Path $distDir "superpoweredcv-firefox.zip"
-if (Test-Path -Path $firefoxZip) { Remove-Item -Path $firefoxZip -Force }
-Compress-Archive -Path "$firefoxBuildDir\*" -DestinationPath $firefoxZip
-
-# Clean up
-Remove-Item -Path $firefoxBuildDir -Recurse -Force
-Write-Host "Created $firefoxZip"

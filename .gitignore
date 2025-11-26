@@ -2,3 +2,5 @@
 /core/target
 /target
 dist/
+/extension/node_modules
+example-profile.htm

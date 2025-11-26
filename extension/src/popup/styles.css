@@ -1,0 +1,115 @@
+:root {
+  --bg-color: #000000;
+  --text-color: #ffffff;
+  --accent-color: #ff3300; /* Fiery Red */
+  --secondary-color: #ffaa00; /* Orange */
+  --border-color: #ffffff;
+  --font-main: 'Arial Black', 'Helvetica Neue', sans-serif;
+  --font-mono: 'Courier New', Courier, monospace;
+}
+
+body {
+  width: 350px;
+  background-color: var(--accent-color);
+  color: var(--text-color);
+  font-family: var(--font-mono);
+  padding: 10px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border: 4px solid var(--bg-color);
+  padding: 1.5rem;
+  background-color: var(--bg-color);
+  box-shadow: 10px 10px 0px rgba(0,0,0,0.5);
+}
+
+h2 {
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  line-height: 0.9;
+  color: var(--accent-color);
+  text-shadow: 2px 2px 0px #fff;
+  transform: skew(-5deg);
+}
+
+.subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--secondary-color);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--secondary-color);
+  padding-bottom: 5px;
+}
+
+.info-box {
+  border: 2px solid var(--border-color);
+  padding: 10px;
+  font-size: 0.8rem;
+  background: #111;
+}
+
+.info-label {
+  color: var(--secondary-color);
+  font-weight: bold;
+  display: block;
+  margin-bottom: 4px;
+}
+
+button {
+  padding: 1rem;
+  background-color: var(--accent-color);
+  color: var(--bg-color);
+  border: none;
+  font-family: var(--font-main);
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.1s;
+  border: 2px solid transparent;
+}
+
+button:hover {
+  background-color: var(--bg-color);
+  color: var(--accent-color);
+  border: 2px solid var(--accent-color);
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px var(--accent-color);
+}
+
+button:active {
+  transform: translate(0, 0);
+  box-shadow: none;
+}
+
+#status {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--secondary-color);
+  min-height: 1.2em;
+}
+
+/* Preview Styles */
+.preview {
+  margin-top: 1rem;
+  border-top: 2px dashed var(--border-color);
+  padding-top: 1rem;
+}
+
+.preview-item {
+  margin-bottom: 0.5rem;
+}
+
+.preview-key {
+  color: var(--secondary-color);
+  font-weight: bold;
+}
+
