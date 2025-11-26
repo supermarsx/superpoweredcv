@@ -122,4 +122,124 @@ describe('Content Script', () => {
         expect(results[0].name).toBe('English');
         expect(results[0].proficiency).toBe('Native or bilingual proficiency');
     });
+
+    test('getVolunteeringFromDoc extracts volunteering', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">Volunteer Role</span>
+                <span aria-hidden="true">NonProfit Org</span>
+                <span aria-hidden="true">Jan 2020 - Present · 3 yrs</span>
+                <div class="inline-show-more-text">
+                    <span aria-hidden="true">Helped people.</span>
+                </div>
+            </div>
+        `;
+        
+        const results = content.getVolunteeringFromDoc(mockDoc);
+        expect(results).toHaveLength(1);
+        expect(results[0].role).toBe('Volunteer Role');
+        expect(results[0].organization).toBe('NonProfit Org');
+        expect(results[0].date_range).toBe('Jan 2020 - Present');
+        expect(results[0].tenure).toBe('3 yrs');
+        expect(results[0].description).toBe('Helped people.');
+    });
+
+    test('getProjectsFromDoc extracts projects', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">Super Project</span>
+                <span aria-hidden="true">Jan 2021 - Dec 2021</span>
+                <a class="optional-action-target-wrapper" href="https://example.com/project"></a>
+                <div class="inline-show-more-text">
+                    <span aria-hidden="true">A great project.</span>
+                </div>
+            </div>
+        `;
+        
+        const results = content.getProjectsFromDoc(mockDoc);
+        expect(results).toHaveLength(1);
+        expect(results[0].title).toBe('Super Project');
+        expect(results[0].date).toBe('Jan 2021 - Dec 2021');
+        expect(results[0].link).toBe('https://example.com/project');
+        expect(results[0].description).toBe('A great project.');
+    });
+
+    test('getPublicationsFromDoc extracts publications', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">Research Paper</span>
+                <span aria-hidden="true">Published in Journal</span>
+                <span aria-hidden="true">2022</span>
+                <a class="optional-action-target-wrapper" href="https://example.com/paper"></a>
+                <div class="inline-show-more-text">
+                    <span aria-hidden="true">Abstract of the paper.</span>
+                </div>
+            </div>
+        `;
+        
+        const results = content.getPublicationsFromDoc(mockDoc);
+        expect(results).toHaveLength(1);
+        expect(results[0].title).toBe('Research Paper');
+        expect(results[0].date).toBe('2022');
+        expect(results[0].link).toBe('https://example.com/paper');
+        expect(results[0].description).toBe('Abstract of the paper.');
+    });
+
+    test('getCoursesFromDoc extracts courses', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">Advanced Algorithms</span>
+                <span aria-hidden="true">CS101</span>
+            </div>
+        `;
+        
+        const results = content.getCoursesFromDoc(mockDoc);
+        expect(results).toHaveLength(1);
+        expect(results[0].name).toBe('Advanced Algorithms');
+        expect(results[0].number).toBe('CS101');
+    });
+
+    test('getPatentsFromDoc extracts patents', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">New Invention</span>
+                <span aria-hidden="true">US123456</span>
+                <div class="inline-show-more-text">
+                    <span aria-hidden="true">Patent description.</span>
+                </div>
+            </div>
+        `;
+        
+        const results = content.getPatentsFromDoc(mockDoc);
+        expect(results).toHaveLength(1);
+        expect(results[0].title).toBe('New Invention');
+        expect(results[0].number).toBe('US123456');
+        expect(results[0].description).toBe('Patent description.');
+    });
+
+    test('getOrganizationsFromDoc extracts organizations', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">Tech Club</span>
+                <span aria-hidden="true">Member</span>
+                <span aria-hidden="true">2019 - 2020</span>
+                <div class="inline-show-more-text">
+                    <span aria-hidden="true">Participated in events.</span>
+                </div>
+            </div>
+        `;
+        
+        const results = content.getOrganizationsFromDoc(mockDoc);
+        expect(results).toHaveLength(1);
+        expect(results[0].name).toBe('Tech Club');
+        expect(results[0].role).toBe('Member');
+        expect(results[0].date).toBe('2019 - 2020');
+        expect(results[0].description).toBe('Participated in events.');
+    });
 });
