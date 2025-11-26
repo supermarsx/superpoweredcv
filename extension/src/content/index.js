@@ -284,7 +284,7 @@ function getVolunteeringFromDoc(doc) {
         const descriptionEl = item.querySelector('.inline-show-more-text');
         if (descriptionEl) {
             const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
+            description = visibleSpan ? visibleSpan.textContent.trim() : descriptionEl.textContent.trim();
         }
 
         return { role, organization, date_range: dateRange, tenure, description };
@@ -302,7 +302,7 @@ function getLanguagesFromDoc(doc) {
     const items = getSectionItems(doc, 'languages');
     return items.map(item => {
         const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
-        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+        const texts = spans.map(s => s.textContent.trim()).filter(t => t && t !== '·');
         
         return {
             name: texts[0] || '',
@@ -337,7 +337,7 @@ function getEducationFromDoc(doc) {
         const descriptionEl = item.querySelector('.inline-show-more-text');
         if (descriptionEl) {
             const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
+            description = visibleSpan ? visibleSpan.textContent.trim() : descriptionEl.textContent.trim();
         }
 
         return { school, degree, date_range: dateRange, description };
@@ -396,7 +396,7 @@ function getPublicationsFromDoc(doc) {
     const items = getSectionItems(doc, 'publications');
     return items.map(item => {
         const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
-        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+        const texts = spans.map(s => s.textContent.trim()).filter(t => t && t !== '·');
 
         let title = texts[0] || '';
         let date = '';
@@ -421,7 +421,7 @@ function getCoursesFromDoc(doc) {
     const items = getSectionItems(doc, 'courses');
     return items.map(item => {
         const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
-        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+        const texts = spans.map(s => s.textContent.trim()).filter(t => t && t !== '·');
         
         return {
             name: texts[0] || '',
@@ -434,7 +434,7 @@ function getPatentsFromDoc(doc) {
     const items = getSectionItems(doc, 'patents');
     return items.map(item => {
         const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
-        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+        const texts = spans.map(s => s.textContent.trim()).filter(t => t && t !== '·');
 
         let title = texts[0] || '';
         let number = texts[1] || '';
@@ -544,6 +544,13 @@ if (isNode) {
         getAbout,
         getExperienceFromDoc,
         getEducationFromDoc,
-        getSkillsFromDoc
+        getSkillsFromDoc,
+        getVolunteeringFromDoc,
+        getLanguagesFromDoc,
+        getProjectsFromDoc,
+        getPublicationsFromDoc,
+        getCoursesFromDoc,
+        getPatentsFromDoc,
+        getOrganizationsFromDoc
     };
 }

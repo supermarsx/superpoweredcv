@@ -69,4 +69,57 @@ describe('Content Script', () => {
         expect(results[0].company).toBe('Tech Corp');
         expect(results[0].description).toBe('Built cool stuff.');
     });
+
+    test('getEducationFromDoc extracts items', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">University of Tech</span>
+                <span aria-hidden="true">Bachelor of Science</span>
+                <span aria-hidden="true">2016 - 2020</span>
+                <div class="inline-show-more-text">
+                    <span aria-hidden="true">Graduated with honors.</span>
+                </div>
+            </div>
+        `;
+        
+        const results = content.getEducationFromDoc(mockDoc);
+        expect(results).toHaveLength(1);
+        expect(results[0].school).toBe('University of Tech');
+        expect(results[0].degree).toBe('Bachelor of Science');
+        expect(results[0].date_range).toBe('2016 - 2020');
+        expect(results[0].description).toBe('Graduated with honors.');
+    });
+
+    test('getSkillsFromDoc extracts skills', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">JavaScript</span>
+            </div>
+            <div class="pvs-list__paged-list-item">
+                <div class="display-flex align-items-center mr1 hoverable-link-text">
+                    <span aria-hidden="true">Rust</span>
+                </div>
+            </div>
+        `;
+        
+        const results = content.getSkillsFromDoc(mockDoc);
+        expect(results).toEqual(['JavaScript', 'Rust']);
+    });
+
+    test('getLanguagesFromDoc extracts languages', () => {
+        const mockDoc = document.implementation.createHTMLDocument();
+        mockDoc.body.innerHTML = `
+            <div class="pvs-list__paged-list-item">
+                <span aria-hidden="true">English</span>
+                <span aria-hidden="true">Native or bilingual proficiency</span>
+            </div>
+        `;
+        
+        const results = content.getLanguagesFromDoc(mockDoc);
+        expect(results).toHaveLength(1);
+        expect(results[0].name).toBe('English');
+        expect(results[0].proficiency).toBe('Native or bilingual proficiency');
+    });
 });
