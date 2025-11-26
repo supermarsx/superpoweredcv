@@ -3,14 +3,20 @@ pub mod pdf;
 pub mod pdf_utils;
 pub mod profile;
 pub mod analysis;
-pub mod templates;
+pub mod attacks;
 pub mod generator;
 pub mod config;
 pub mod llm;
 pub mod latex;
+pub mod gui;
+pub mod red_team;
+pub mod simulation;
 
 /// A specialized result type for Analysis operations.
 pub type Result<T> = std::result::Result<T, AnalysisError>;
+
+pub type RedTeamError = AnalysisError;
+pub type SimulationError = AnalysisError;
 
 /// Errors that can occur during Analysis operations.
 #[derive(Debug, thiserror::Error)]

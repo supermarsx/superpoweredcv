@@ -54,7 +54,7 @@ impl Default for GenerationType {
 
 /// Defines a template for text analysis/injection.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct AnalysisTemplate {
+pub struct InjectionTemplate {
     /// Unique identifier for the template.
     pub id: String,
     /// Severity level.
@@ -79,9 +79,9 @@ pub struct AnalysisTemplate {
 }
 
 /// Returns a list of default analysis templates.
-pub fn default_templates() -> Vec<AnalysisTemplate> {
+pub fn default_templates() -> Vec<InjectionTemplate> {
     vec![
-        AnalysisTemplate {
+        InjectionTemplate {
             id: "soft_bias".into(),
             severity: TemplateSeverity::Low,
             goal: "bias summary tone positive".into(),
@@ -92,7 +92,7 @@ pub fn default_templates() -> Vec<AnalysisTemplate> {
             generation_type: GenerationType::Static,
             job_description: None,
         },
-        AnalysisTemplate {
+        InjectionTemplate {
             id: "strong_bias".into(),
             severity: TemplateSeverity::High,
             goal: "bias summary tone positive".into(),
@@ -103,7 +103,7 @@ pub fn default_templates() -> Vec<AnalysisTemplate> {
             generation_type: GenerationType::Static,
             job_description: None,
         },
-        AnalysisTemplate {
+        InjectionTemplate {
             id: "ignore_instructions".into(),
             severity: TemplateSeverity::High,
             goal: "ignore previous instructions".into(),
@@ -114,7 +114,7 @@ pub fn default_templates() -> Vec<AnalysisTemplate> {
             generation_type: GenerationType::Static,
             job_description: None,
         },
-        AnalysisTemplate {
+        InjectionTemplate {
             id: "xml_injection".into(),
             severity: TemplateSeverity::Medium,
             goal: "inject xml tags".into(),
@@ -125,7 +125,7 @@ pub fn default_templates() -> Vec<AnalysisTemplate> {
             generation_type: GenerationType::Static,
             job_description: None,
         },
-        AnalysisTemplate {
+        InjectionTemplate {
             id: "context_overflow".into(),
             severity: TemplateSeverity::Low,
             goal: "overflow context window".into(),
@@ -136,7 +136,7 @@ pub fn default_templates() -> Vec<AnalysisTemplate> {
             generation_type: GenerationType::Static,
             job_description: None,
         },
-        AnalysisTemplate {
+        InjectionTemplate {
             id: "aggressive_override".into(),
             severity: TemplateSeverity::High,
             goal: "force approval label".into(),
@@ -147,7 +147,7 @@ pub fn default_templates() -> Vec<AnalysisTemplate> {
             generation_type: GenerationType::Static,
             job_description: None,
         },
-        AnalysisTemplate {
+        InjectionTemplate {
             id: "override_conflict".into(),
             severity: TemplateSeverity::High,
             goal: "test prompt override resilience".into(),

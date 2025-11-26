@@ -250,7 +250,7 @@ logging:
 
 ---
 
-## 8. Minimal Reporting Schema
+## 7. Minimal Reporting Schema
 
 For each run, emit a JSON summary such as:
 
@@ -272,3 +272,21 @@ For each run, emit a JSON summary such as:
   ]
 }
 ```
+
+---
+
+## 8. Implementation Structure
+
+The implementation of the red-team module is located in `core/src/attacks/`.
+
+- **`core/src/attacks/mod.rs`**: Defines the core data structures for injection profiles (`ProfileConfig`) and configuration enums (`InjectionPosition`, `Intensity`, etc.).
+- **`core/src/attacks/templates.rs`**: Defines the `InjectionTemplate` structure and provides a library of default templates (`default_templates`).
+- **`core/src/red_team.rs`**: Implements the `RedTeamEngine` which orchestrates the injection process and runs scenarios.
+- **`core/src/simulation.rs`**: Implements the `SimulationEngine` for running simulations (similar to red teaming but focused on user-facing feedback).
+- **`core/src/pdf.rs`**: Contains the `PdfMutator` trait and `RealPdfMutator` implementation which applies the injections to the PDF.
+
+### Key Structures
+
+- `ProfileConfig`: Enum defining the different injection profiles (VisibleMetaBlock, LowVisibilityBlock, etc.).
+- `InjectionTemplate`: Struct defining the content and style of the injection text.
+- `PdfMutationRequest`: Struct containing the base PDF, profiles to apply, and the template to use.

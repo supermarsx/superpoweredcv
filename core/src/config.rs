@@ -6,6 +6,7 @@ pub struct AppConfig {
     pub llm: LlmConfig,
     pub prompts: PromptConfig,
     pub latex: LatexConfig,
+    pub history: HistoryConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,12 +29,19 @@ pub struct LatexConfig {
     pub auto_detect: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryConfig {
+    pub recent_json_files: Vec<String>,
+    pub max_history_size: usize,
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             llm: LlmConfig::default(),
             prompts: PromptConfig::default(),
             latex: LatexConfig::default(),
+            history: HistoryConfig::default(),
         }
     }
 }
@@ -67,6 +75,15 @@ impl Default for LatexConfig {
     }
 }
 
+impl Default for HistoryConfig {
+    fn default() -> Self {
+        Self {
+            recent_json_files: Vec::new(),
+            max_history_size: 5,
+        }
+    }
+}
+
 impl AppConfig {
     pub fn load() -> Self {
         // In a real app, we'd load from a file. For now, return defaults or try to load from a local config.json
@@ -82,4 +99,18 @@ impl AppConfig {
         let content = serde_json::to_string_pretty(self)?;
         fs::write("config.json", content)
     }
+
+    pub fn add_recent_file(&mut self, path: &str) {
+        // Remove if exists to move to top
+        if let Some(pos) = self.history.recent_json_files.iter().position(|x| x == path) {
+            self.history.recent_json_files.remove(pos);
+        }
+        self.history.recent_json_files.insert(0, path.to_string());
+        if self.history.recent_json_files.len() > self.history.max_history_size {
+            self.history.recent_json_files.truncate(self.history.max_history_size);
+        }
+        let _ = self.save();
+    }
 }
+
+

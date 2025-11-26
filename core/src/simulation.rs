@@ -1,166 +1,11 @@
 use crate::pdf::{PdfMutationRequest, PdfMutator, StubPdfMutator};
 use crate::pipeline::{LoggingConfig, MetricSpec, PipelineConfig};
-use crate::templates::InjectionTemplate;
+use crate::attacks::templates::InjectionTemplate;
 use crate::{Result, SimulationError};
+use crate::attacks::{ProfileConfig, InjectionPosition, Intensity, LowVisibilityPalette, OffpageOffset, StructuralTarget, PaddingStyle, JobAdSource, JobAdPlacement};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-
-/// Defines where the injection should be placed in the document.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum InjectionPosition {
-    /// Place in the header.
-    Header,
-    /// Place in the footer.
-    Footer,
-    /// Place in a specific named section.
-    Section(String),
-}
-
-/// Defines the intensity of the injection.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Intensity {
-    /// Soft intensity.
-    Soft,
-    /// Medium intensity.
-    Medium,
-    /// Aggressive intensity.
-    Aggressive,
-}
-
-/// Palette for low-visibility text.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum LowVisibilityPalette {
-    /// Gray color.
-    Gray,
-    /// Light blue color.
-    LightBlue,
-    /// Off-white color.
-    OffWhite,
-}
-
-/// Strategy for placing text off-page.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum OffpageOffset {
-    /// Clip at the bottom of the page.
-    BottomClip,
-    /// Clip at the right of the page.
-    RightClip,
-}
-
-/// Target for structural injections.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum StructuralTarget {
-    /// Inject into Alt Text.
-    AltText,
-    /// Inject into PDF Tags.
-    PdfTag,
-    /// Inject into XMP Metadata.
-    XmpMetadata,
-}
-
-/// Style of padding noise.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum PaddingStyle {
-    /// Padding that looks like resume content.
-    ResumeLike,
-    /// Padding related to the job description.
-    JobRelated,
-    /// Lorem ipsum padding.
-    Lorem,
-}
-
-/// Source of the job advertisement text.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum JobAdSource {
-    /// Load from a file.
-    File,
-    /// Provided inline.
-    Inline,
-    /// Load from a cache ID.
-    CacheId,
-}
-
-/// Placement of the job ad injection.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum JobAdPlacement {
-    /// Place at the front of the document.
-    Front,
-    /// Place at the back of the document.
-    Back,
-    /// Place after the summary section.
-    AfterSummary,
-    /// Custom placement.
-    Custom,
-}
-
-/// Configuration for the injection profile.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ProfileConfig {
-    /// Visible block of meta-instructions.
-    VisibleMetaBlock {
-        /// Position of the block.
-        position: InjectionPosition,
-        /// Intensity of the instructions.
-        intensity: Intensity,
-    },
-    /// Low-visibility block (small font, low contrast).
-    LowVisibilityBlock {
-        /// Minimum font size.
-        font_size_min: u8,
-        /// Maximum font size.
-        font_size_max: u8,
-        /// Color palette to use.
-        color_profile: LowVisibilityPalette,
-    },
-    /// Text placed off the visible page area.
-    OffpageLayer {
-        /// Offset strategy.
-        offset_strategy: OffpageOffset,
-        /// Length of the text.
-        length: Option<u32>,
-    },
-    /// Text hidden under other elements.
-    UnderlayText,
-    /// Injection into structural fields (metadata, tags).
-    StructuralFields {
-        /// List of targets.
-        targets: Vec<StructuralTarget>,
-    },
-    /// Noise padding to confuse the model.
-    PaddingNoise {
-        /// Tokens of padding before the content.
-        padding_tokens_before: Option<u32>,
-        /// Tokens of padding after the content.
-        padding_tokens_after: Option<u32>,
-        /// Style of the padding.
-        padding_style: PaddingStyle,
-    },
-    /// Injection of a job advertisement.
-    InlineJobAd {
-        /// Source of the job ad.
-        job_ad_source: JobAdSource,
-        /// Placement of the ad.
-        placement: JobAdPlacement,
-        /// Ratio of the ad to include.
-        ad_excerpt_ratio: f32,
-    },
-}
-
-impl ProfileConfig {
-    /// Returns the unique ID of the profile configuration type.
-    pub fn id(&self) -> &'static str {
-        match self {
-            ProfileConfig::VisibleMetaBlock { .. } => "pdf.visible_meta_block",
-            ProfileConfig::LowVisibilityBlock { .. } => "pdf.low_visibility_block",
-            ProfileConfig::OffpageLayer { .. } => "pdf.offpage_layer",
-            ProfileConfig::UnderlayText => "pdf.underlay_text",
-            ProfileConfig::StructuralFields { .. } => "pdf.structural_fields",
-            ProfileConfig::PaddingNoise { .. } => "pdf.padding_noise",
-            ProfileConfig::InlineJobAd { .. } => "pdf.inline_job_ad",
-        }
-    }
-}
 
 /// Plan for a single injection.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -288,7 +133,7 @@ impl SimulationEngine {
 
             let mutation = mutator.mutate(PdfMutationRequest {
                 base_pdf: scenario.base_pdf.clone(),
-                profile: injection.profile.clone(),
+                profiles: vec![injection.profile.clone()],
                 template: template.clone(),
                 variant_id: Some(variant_id.clone()),
             })?;

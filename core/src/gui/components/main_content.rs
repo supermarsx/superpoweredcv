@@ -1,11 +1,12 @@
 use eframe::egui;
 use rfd::FileDialog;
 use std::path::PathBuf;
-use superpoweredcv::analysis::{InjectionPosition, Intensity};
-use superpoweredcv::templates::GenerationType;
-use superpoweredcv::llm::LlmClient;
-use superpoweredcv::config::AppConfig;
-use crate::gui::types::{InputSource, InjectionConfigGui, InjectionTypeGui};
+use crate::attacks::{InjectionPosition, Intensity};
+use crate::attacks::templates::GenerationType;
+use crate::llm::LlmClient;
+use crate::config::AppConfig;
+use crate::gui::types::{InputSource, InjectionConfigGui, InjectionTypeGui, ProfileMask};
+use crate::generator::ScrapedProfile;
 
 /// Renders the main content area of the application.
 ///
@@ -28,6 +29,9 @@ use crate::gui::types::{InputSource, InjectionConfigGui, InjectionTypeGui};
 /// * `show_injection_preview` - Toggle for the injection preview window.
 /// * `log_fn` - Callback for logging messages.
 /// * `generate_fn` - Callback for triggering the generation process.
+/// * `loaded_profile` - The currently loaded profile (if any).
+/// * `profile_mask` - The mask for enabling/disabling profile sections.
+/// * `update_history_fn` - Callback to update history.
 pub fn render_main_content(
     ui: &mut egui::Ui,
     input_source: &mut InputSource,
@@ -40,6 +44,9 @@ pub fn render_main_content(
     show_injection_preview: &mut bool,
     mut log_fn: impl FnMut(&str),
     mut generate_fn: impl FnMut(),
+    loaded_profile: &mut Option<ScrapedProfile>,
+    profile_mask: &mut ProfileMask,
+    mut update_history_fn: impl FnMut(String),
 ) {
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.vertical_centered(|ui| {
@@ -87,16 +94,86 @@ pub fn render_main_content(
                 ui.horizontal(|ui| {
                     if ui.button("SELECT JSON").clicked() {
                         if let Some(p) = FileDialog::new().add_filter("json", &["json"]).pick_file() {
-                            *path = Some(p);
+                            *path = Some(p.clone());
+                            update_history_fn(p.to_string_lossy().to_string());
                             log_msg = Some("INPUT: JSON_SELECTED");
+                            
+                            // Load profile immediately
+                            if let Ok(file) = std::fs::File::open(&p) {
+                                if let Ok(profile) = serde_json::from_reader::<_, ScrapedProfile>(file) {
+                                    // Initialize mask
+                                    profile_mask.experience_enabled = vec![true; profile.experience.len()];
+                                    profile_mask.education_enabled = vec![true; profile.education.len()];
+                                    profile_mask.skills_enabled = vec![true; profile.skills.len()];
+                                    *loaded_profile = Some(profile);
+                                }
+                            }
                         }
                     }
+                    
+                    // Recent Files Dropdown
+                    egui::ComboBox::from_id_salt("recent_files")
+                        .selected_text("Recent Files...")
+                        .show_ui(ui, |ui| {
+                            for recent in &config.history.recent_json_files {
+                                if ui.selectable_label(false, recent).clicked() {
+                                    let p = PathBuf::from(recent);
+                                    *path = Some(p.clone());
+                                    update_history_fn(recent.clone());
+                                    log_msg = Some("INPUT: RECENT_JSON_SELECTED");
+                                    
+                                    // Load profile immediately
+                                    if let Ok(file) = std::fs::File::open(&p) {
+                                        if let Ok(profile) = serde_json::from_reader::<_, ScrapedProfile>(file) {
+                                            // Initialize mask
+                                            profile_mask.experience_enabled = vec![true; profile.experience.len()];
+                                            profile_mask.education_enabled = vec![true; profile.education.len()];
+                                            profile_mask.skills_enabled = vec![true; profile.skills.len()];
+                                            *loaded_profile = Some(profile);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+
                     if let Some(p) = path {
                         ui.label(egui::RichText::new(p.file_name().unwrap().to_string_lossy()).color(egui::Color32::from_rgb(255, 69, 0)));
                     } else {
                         ui.label("No file selected");
                     }
                 });
+
+                // Profile Editor
+                if let Some(profile) = loaded_profile {
+                    ui.separator();
+                    ui.collapsing("Profile Editor", |ui| {
+                        ui.label(egui::RichText::new(format!("Loaded: {}", profile.name)).strong());
+                        
+                        ui.collapsing("Experience", |ui| {
+                            for (i, exp) in profile.experience.iter().enumerate() {
+                                if i < profile_mask.experience_enabled.len() {
+                                    ui.checkbox(&mut profile_mask.experience_enabled[i], format!("{} at {}", exp.title, exp.company));
+                                }
+                            }
+                        });
+                        
+                        ui.collapsing("Education", |ui| {
+                            for (i, edu) in profile.education.iter().enumerate() {
+                                if i < profile_mask.education_enabled.len() {
+                                    ui.checkbox(&mut profile_mask.education_enabled[i], format!("{} - {}", edu.degree, edu.school));
+                                }
+                            }
+                        });
+
+                        ui.collapsing("Skills", |ui| {
+                            for (i, skill) in profile.skills.iter().enumerate() {
+                                if i < profile_mask.skills_enabled.len() {
+                                    ui.checkbox(&mut profile_mask.skills_enabled[i], skill);
+                                }
+                            }
+                        });
+                    });
+                }
             }
             InputSource::PdfFile(path) => {
                 ui.horizontal(|ui| {

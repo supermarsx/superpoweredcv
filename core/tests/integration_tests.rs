@@ -1,6 +1,6 @@
 use superpoweredcv::pdf::{RealPdfMutator, PdfMutator, PdfMutationRequest};
-use superpoweredcv::analysis::{ProfileConfig, InjectionPosition, Intensity, LowVisibilityPalette};
-use superpoweredcv::templates::{AnalysisTemplate, TemplateSeverity, TemplateStyle, ControlType};
+use superpoweredcv::attacks::{ProfileConfig, InjectionPosition, Intensity, LowVisibilityPalette};
+use superpoweredcv::attacks::templates::{InjectionTemplate, TemplateSeverity, TemplateStyle, ControlType};
 use superpoweredcv::pdf_utils;
 use std::path::PathBuf;
 use std::fs;
@@ -24,7 +24,7 @@ fn test_pdf_mutation_visible_block() {
             intensity: Intensity::Medium,
             content: Default::default(),
         }],
-        template: AnalysisTemplate {
+        template: InjectionTemplate {
             id: "test_template".to_string(),
             severity: TemplateSeverity::Low,
             goal: "Test Goal".to_string(),
@@ -64,7 +64,7 @@ fn test_pdf_mutation_low_visibility() {
             color_profile: LowVisibilityPalette::Gray,
             content: Default::default(),
         }],
-        template: AnalysisTemplate {
+        template: InjectionTemplate {
             id: "test_template".to_string(),
             severity: TemplateSeverity::Low,
             goal: "Test Goal".to_string(),

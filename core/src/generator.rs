@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use crate::Result;
-use crate::analysis::{ProfileConfig, InjectionPosition, Intensity};
+use crate::attacks::{ProfileConfig, InjectionPosition, Intensity};
 use lopdf::{Document, Object, dictionary};
 use lopdf::content::{Content, Operation};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ScrapedProfile {
     pub name: String,
     pub headline: String,
@@ -17,7 +17,7 @@ pub struct ScrapedProfile {
     pub url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ScrapedExperience {
     pub title: String,
     pub company: String,
@@ -25,7 +25,7 @@ pub struct ScrapedExperience {
     pub location: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ScrapedEducation {
     pub school: String,
     pub degree: String,

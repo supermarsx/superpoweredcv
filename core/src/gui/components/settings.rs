@@ -1,6 +1,6 @@
 use eframe::egui;
-use superpoweredcv::config::AppConfig;
-use superpoweredcv::latex::manager::LatexManager;
+use crate::config::AppConfig;
+use crate::latex::manager::LatexManager;
 use crate::gui::types::LlmProvider;
 
 #[derive(PartialEq, Clone, Copy)]
@@ -8,6 +8,7 @@ enum SettingsTab {
     Llm,
     Prompts,
     Latex,
+    General,
 }
 
 /// Renders the settings window with tabs for different configuration sections.
@@ -25,6 +26,7 @@ pub fn render_settings(ui: &mut egui::Ui, config: &mut AppConfig, selected_provi
         ui.selectable_value(&mut current_tab, SettingsTab::Llm, "LLM Provider");
         ui.selectable_value(&mut current_tab, SettingsTab::Prompts, "Prompts");
         ui.selectable_value(&mut current_tab, SettingsTab::Latex, "LaTeX");
+        ui.selectable_value(&mut current_tab, SettingsTab::General, "General");
     });
     ui.separator();
 
@@ -35,6 +37,7 @@ pub fn render_settings(ui: &mut egui::Ui, config: &mut AppConfig, selected_provi
             SettingsTab::Llm => render_llm_settings(ui, config, selected_provider),
             SettingsTab::Prompts => render_prompt_settings(ui, config),
             SettingsTab::Latex => render_latex_settings(ui, config, &mut log_fn),
+            SettingsTab::General => render_general_settings(ui, config),
         }
 
         ui.add_space(20.0);
@@ -47,6 +50,8 @@ pub fn render_settings(ui: &mut egui::Ui, config: &mut AppConfig, selected_provi
         }
     });
 }
+
+
 
 fn render_llm_settings(ui: &mut egui::Ui, config: &mut AppConfig, selected_provider: &mut LlmProvider) {
     ui.heading(egui::RichText::new("LLM Provider Settings").color(egui::Color32::from_rgb(255, 69, 0)));
@@ -180,6 +185,37 @@ fn render_latex_settings(ui: &mut egui::Ui, config: &mut AppConfig, log_fn: &mut
     } else {
         ui.label(egui::RichText::new("● NOT FOUND").color(egui::Color32::RED));
         ui.label("Please install a LaTeX distribution (TeX Live, MiKTeX, or Tectonic).");
+    }
+}
+
+fn render_general_settings(ui: &mut egui::Ui, config: &mut AppConfig) {
+    ui.heading(egui::RichText::new("General Settings").color(egui::Color32::from_rgb(255, 69, 0)));
+    ui.add_space(10.0);
+
+    ui.horizontal(|ui| {
+        ui.label("Max History Size:");
+        ui.add(egui::DragValue::new(&mut config.history.max_history_size).range(1..=20));
+    });
+
+    ui.add_space(10.0);
+    ui.label("Recent JSON Files:");
+    
+    let mut to_remove = None;
+    for (idx, file) in config.history.recent_json_files.iter().enumerate() {
+        ui.horizontal(|ui| {
+            ui.label(format!("{}. {}", idx + 1, file));
+            if ui.button("🗑").clicked() {
+                to_remove = Some(idx);
+            }
+        });
+    }
+
+    if let Some(idx) = to_remove {
+        config.history.recent_json_files.remove(idx);
+    }
+
+    if ui.button("Clear All History").clicked() {
+        config.history.recent_json_files.clear();
     }
 }
 

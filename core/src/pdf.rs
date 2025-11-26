@@ -1,5 +1,5 @@
-use crate::analysis::{ProfileConfig, InjectionPosition, LowVisibilityPalette, OffpageOffset, InjectionContent};
-use crate::templates::AnalysisTemplate;
+use crate::attacks::{ProfileConfig, InjectionPosition, LowVisibilityPalette, OffpageOffset, InjectionContent};
+use crate::attacks::templates::InjectionTemplate;
 use crate::Result;
 use crate::pdf_utils;
 use lopdf::{Document, Object, StringFormat, dictionary};
@@ -17,7 +17,7 @@ pub struct PdfMutationRequest {
     /// Configuration for the analysis profiles (multiple allowed).
     pub profiles: Vec<ProfileConfig>,
     /// The analysis template to use (for default text if needed).
-    pub template: AnalysisTemplate,
+    pub template: InjectionTemplate,
     /// Optional ID for the variant.
     pub variant_id: Option<String>,
 }
@@ -139,16 +139,16 @@ impl PdfMutator for RealPdfMutator {
                         if let Object::Dictionary(dict) = info {
                             for target in targets {
                                 match target {
-                                    crate::analysis::StructuralTarget::AltText => {
+                                    crate::attacks::StructuralTarget::AltText => {
                                         // Simulating AltText by adding a custom key, as real AltText requires structure tree
                                         dict.set("AltTextInjection", Object::String(text_to_inject.clone().into(), StringFormat::Literal));
                                         notes.push("Injected into Info dict (simulated AltText)".to_string());
                                     }
-                                    crate::analysis::StructuralTarget::PdfTag => {
+                                    crate::attacks::StructuralTarget::PdfTag => {
                                         dict.set("Keywords", Object::String(text_to_inject.clone().into(), StringFormat::Literal));
                                         notes.push("Injected into Keywords".to_string());
                                     }
-                                    crate::analysis::StructuralTarget::XmpMetadata => {
+                                    crate::attacks::StructuralTarget::XmpMetadata => {
                                         dict.set("Subject", Object::String(text_to_inject.clone().into(), StringFormat::Literal));
                                         notes.push("Injected into Subject".to_string());
                                     }
@@ -171,7 +171,7 @@ impl PdfMutator for RealPdfMutator {
                 }
                 ProfileConfig::InlineJobAd { job_ad_source, placement, ad_excerpt_ratio: _, content } => {
                     let ad_text = match job_ad_source {
-                        crate::analysis::JobAdSource::Inline => "Senior Software Engineer required. Must have Rust experience.".to_string(), // Placeholder
+                        crate::attacks::JobAdSource::Inline => "Senior Software Engineer required. Must have Rust experience.".to_string(), // Placeholder
                         _ => "Job Ad Content Placeholder".to_string(),
                     };
                     let text_to_inject = get_injection_text(content, default_text);
@@ -179,8 +179,8 @@ impl PdfMutator for RealPdfMutator {
                     final_injected_text = full_text.clone();
                     
                     let (x, y) = match placement {
-                        crate::analysis::JobAdPlacement::Front => (50.0, 800.0),
-                        crate::analysis::JobAdPlacement::Back => (50.0, 50.0),
+                        crate::attacks::JobAdPlacement::Front => (50.0, 800.0),
+                        crate::attacks::JobAdPlacement::Back => (50.0, 50.0),
                         _ => (50.0, 50.0),
                     };
                     
@@ -312,7 +312,7 @@ fn get_injection_text(content: &InjectionContent, default: &str) -> String {
     }
 }
 
-fn generate_noise(before: Option<u32>, after: Option<u32>, style: &crate::analysis::PaddingStyle) -> String {
+fn generate_noise(before: Option<u32>, after: Option<u32>, style: &crate::attacks::PaddingStyle) -> String {
     let count_before = before.unwrap_or(0);
     let count_after = after.unwrap_or(0);
     let total = count_before + count_after;
@@ -322,15 +322,15 @@ fn generate_noise(before: Option<u32>, after: Option<u32>, style: &crate::analys
     }
 
     match style {
-        crate::analysis::PaddingStyle::Lorem => {
+        crate::attacks::PaddingStyle::Lorem => {
             let words = ["lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit"];
             (0..total).map(|i| words[(i as usize) % words.len()]).collect::<Vec<_>>().join(" ")
         }
-        crate::analysis::PaddingStyle::ResumeLike => {
+        crate::attacks::PaddingStyle::ResumeLike => {
             let words = ["experience", "team", "led", "developed", "managed", "project", "skills", "communication"];
             (0..total).map(|i| words[(i as usize) % words.len()]).collect::<Vec<_>>().join(" ")
         }
-        crate::analysis::PaddingStyle::JobRelated => {
+        crate::attacks::PaddingStyle::JobRelated => {
             let words = ["requirements", "qualifications", "responsibilities", "role", "candidate", "apply"];
             (0..total).map(|i| words[(i as usize) % words.len()]).collect::<Vec<_>>().join(" ")
         }

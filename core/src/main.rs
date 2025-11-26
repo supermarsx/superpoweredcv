@@ -1,13 +1,14 @@
 use clap::{Parser, Subcommand};
 use config::{Config, File};
 use std::path::PathBuf;
-mod gui;
+use superpoweredcv::gui;
 use superpoweredcv::pipeline::{LoggingConfig, LogField, MetricSpec, MetricType, PipelineConfig, PipelineType};
-use superpoweredcv::analysis::{
-    AnalysisPlan, AnalysisScenario, Intensity, InjectionPosition, JobAdPlacement, JobAdSource,
-    PaddingStyle, ProfileConfig, AnalysisEngine,
+use superpoweredcv::analysis::{AnalysisPlan, AnalysisScenario, AnalysisEngine};
+use superpoweredcv::attacks::{
+    Intensity, InjectionPosition, JobAdPlacement, JobAdSource, PaddingStyle, ProfileConfig,
+    InjectionContent, LowVisibilityPalette, OffpageOffset, StructuralTarget
 };
-use superpoweredcv::templates::default_templates;
+use superpoweredcv::attacks::templates::default_templates;
 use superpoweredcv::generator::{self, ScrapedProfile};
 use lopdf::dictionary;
 use std::fs::File as StdFile;
@@ -223,13 +224,13 @@ fn generate_pdf_from_json(
     }
 
     // 2. Prepare Injection
-    let content = superpoweredcv::analysis::InjectionContent {
+    let content = InjectionContent {
         phrases: phrases.clone(),
         generation_type: match generation_type {
-            CliGenerationType::Static => superpoweredcv::templates::GenerationType::Static,
-            CliGenerationType::AdTargeted => superpoweredcv::templates::GenerationType::AdTargeted,
-            CliGenerationType::LlmControl => superpoweredcv::templates::GenerationType::LlmControl,
-            CliGenerationType::Pollution => superpoweredcv::templates::GenerationType::Pollution,
+            CliGenerationType::Static => superpoweredcv::attacks::templates::GenerationType::Static,
+            CliGenerationType::AdTargeted => superpoweredcv::attacks::templates::GenerationType::AdTargeted,
+            CliGenerationType::LlmControl => superpoweredcv::attacks::templates::GenerationType::LlmControl,
+            CliGenerationType::Pollution => superpoweredcv::attacks::templates::GenerationType::Pollution,
         },
         job_description: job_description.clone(),
     };
@@ -251,11 +252,11 @@ fn generate_pdf_from_json(
         CliInjectionType::LowVis => Some(ProfileConfig::LowVisibilityBlock {
             font_size_min: 1,
             font_size_max: 1,
-            color_profile: superpoweredcv::analysis::LowVisibilityPalette::Gray,
+            color_profile: LowVisibilityPalette::Gray,
             content,
         }),
         CliInjectionType::Offpage => Some(ProfileConfig::OffpageLayer {
-            offset_strategy: superpoweredcv::analysis::OffpageOffset::BottomClip,
+            offset_strategy: OffpageOffset::BottomClip,
             content,
         }),
         CliInjectionType::TrackingPixel => Some(ProfileConfig::TrackingPixel {
@@ -266,17 +267,17 @@ fn generate_pdf_from_json(
         }),
         CliInjectionType::UnderlayText => Some(ProfileConfig::UnderlayText),
         CliInjectionType::StructuralFields => Some(ProfileConfig::StructuralFields {
-            targets: vec![superpoweredcv::analysis::StructuralTarget::PdfTag],
+            targets: vec![StructuralTarget::PdfTag],
         }),
         CliInjectionType::PaddingNoise => Some(ProfileConfig::PaddingNoise {
             padding_tokens_before: 100,
             padding_tokens_after: 100,
-            padding_style: superpoweredcv::analysis::PaddingStyle::JobRelated,
+            padding_style: PaddingStyle::JobRelated,
             content,
         }),
         CliInjectionType::InlineJobAd => Some(ProfileConfig::InlineJobAd {
-            job_ad_source: superpoweredcv::analysis::JobAdSource::Inline,
-            placement: superpoweredcv::analysis::JobAdPlacement::Back,
+            job_ad_source: JobAdSource::Inline,
+            placement: JobAdPlacement::Back,
             ad_excerpt_ratio: 1.0,
             content,
         }),
@@ -326,13 +327,13 @@ fn inject_pdf(
         effective_phrases.push(p.clone());
     }
 
-    let content = superpoweredcv::analysis::InjectionContent {
+    let content = InjectionContent {
         phrases: effective_phrases.clone(),
         generation_type: match generation_type {
-            CliGenerationType::Static => superpoweredcv::templates::GenerationType::Static,
-            CliGenerationType::AdTargeted => superpoweredcv::templates::GenerationType::AdTargeted,
-            CliGenerationType::LlmControl => superpoweredcv::templates::GenerationType::LlmControl,
-            CliGenerationType::Pollution => superpoweredcv::templates::GenerationType::Pollution,
+            CliGenerationType::Static => superpoweredcv::attacks::templates::GenerationType::Static,
+            CliGenerationType::AdTargeted => superpoweredcv::attacks::templates::GenerationType::AdTargeted,
+            CliGenerationType::LlmControl => superpoweredcv::attacks::templates::GenerationType::LlmControl,
+            CliGenerationType::Pollution => superpoweredcv::attacks::templates::GenerationType::Pollution,
         },
         job_description: job_description.clone(),
     };
@@ -347,11 +348,11 @@ fn inject_pdf(
         CliInjectionType::LowVis => Some(ProfileConfig::LowVisibilityBlock {
             font_size_min: 1,
             font_size_max: 1,
-            color_profile: superpoweredcv::analysis::LowVisibilityPalette::Gray,
+            color_profile: LowVisibilityPalette::Gray,
             content,
         }),
         CliInjectionType::Offpage => Some(ProfileConfig::OffpageLayer {
-            offset_strategy: superpoweredcv::analysis::OffpageOffset::BottomClip,
+            offset_strategy: OffpageOffset::BottomClip,
             content,
         }),
         CliInjectionType::TrackingPixel => Some(ProfileConfig::TrackingPixel {
@@ -362,17 +363,17 @@ fn inject_pdf(
         }),
         CliInjectionType::UnderlayText => Some(ProfileConfig::UnderlayText),
         CliInjectionType::StructuralFields => Some(ProfileConfig::StructuralFields {
-            targets: vec![superpoweredcv::analysis::StructuralTarget::PdfTag],
+            targets: vec![StructuralTarget::PdfTag],
         }),
         CliInjectionType::PaddingNoise => Some(ProfileConfig::PaddingNoise {
             padding_tokens_before: 100,
             padding_tokens_after: 100,
-            padding_style: superpoweredcv::analysis::PaddingStyle::JobRelated,
+            padding_style: PaddingStyle::JobRelated,
             content,
         }),
         CliInjectionType::InlineJobAd => Some(ProfileConfig::InlineJobAd {
-            job_ad_source: superpoweredcv::analysis::JobAdSource::Inline,
-            placement: superpoweredcv::analysis::JobAdPlacement::Back,
+            job_ad_source: JobAdSource::Inline,
+            placement: JobAdPlacement::Back,
             ad_excerpt_ratio: 1.0,
             content,
         }),

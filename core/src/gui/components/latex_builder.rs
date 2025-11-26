@@ -1,7 +1,7 @@
 use eframe::egui;
 use std::fs::File;
-use superpoweredcv::latex::LatexResume;
-use superpoweredcv::generator::ScrapedProfile;
+use crate::latex::LatexResume;
+use crate::generator::ScrapedProfile;
 use crate::gui::types::InputSource;
 
 /// Renders the LaTeX visual builder interface.

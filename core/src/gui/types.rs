@@ -1,6 +1,6 @@
 use std::path::PathBuf;
-use superpoweredcv::analysis::{InjectionPosition, Intensity};
-use superpoweredcv::templates::GenerationType;
+use crate::attacks::{InjectionPosition, Intensity};
+use crate::attacks::templates::GenerationType;
 
 #[derive(PartialEq, Clone)]
 pub enum InputSource {
@@ -61,4 +61,11 @@ pub enum InjectionTypeGui {
     InlineJobAd,
     TrackingPixel,
     CodeInjection,
+}
+
+#[derive(Default, Clone)]
+pub struct ProfileMask {
+    pub experience_enabled: Vec<bool>,
+    pub education_enabled: Vec<bool>,
+    pub skills_enabled: Vec<bool>,
 }

@@ -5,19 +5,20 @@ pub mod components;
 use eframe::egui;
 use std::path::PathBuf;
 use std::fs::File;
-use superpoweredcv::generator::{self, ScrapedProfile};
-use superpoweredcv::analysis::{ProfileConfig, InjectionContent, LowVisibilityPalette, OffpageOffset};
-use superpoweredcv::templates::{GenerationType, default_templates};
-use superpoweredcv::config::AppConfig;
-use superpoweredcv::pdf::{PdfMutator, RealPdfMutator, PdfMutationRequest};
-use superpoweredcv::latex::LatexResume;
+use crate::generator::{self, ScrapedProfile};
+use crate::attacks::{ProfileConfig, InjectionContent, LowVisibilityPalette, OffpageOffset, StructuralTarget, PaddingStyle, JobAdSource, JobAdPlacement};
+use crate::attacks::templates::{GenerationType, default_templates};
+use crate::config::AppConfig;
+use crate::pdf::{PdfMutator, RealPdfMutator, PdfMutationRequest};
+use crate::latex::LatexResume;
 
-use self::types::{InputSource, LlmProvider, InjectionConfigGui, InjectionTypeGui};
+use self::types::{InputSource, LlmProvider, InjectionConfigGui, InjectionTypeGui, ProfileMask};
 use self::styles::{setup_custom_fonts, setup_custom_styles, custom_window_frame};
 use self::components::preview::render_preview;
 use self::components::settings::render_settings;
 use self::components::latex_builder::render_latex_builder;
 use self::components::main_content::render_main_content;
+use crate::gui::components::ai_assistant::{render_ai_assistant, AiAssistantState};
 
 pub fn run_gui() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -58,6 +59,10 @@ struct MyApp {
 
     // Log Window
     show_log_window: bool,
+
+    // AI Assistant
+    show_ai_assistant: bool,
+    ai_assistant_state: AiAssistantState,
     
     // Window States
     settings_pinned: bool,
@@ -65,9 +70,16 @@ struct MyApp {
     logs_pinned: bool,
     main_pinned: bool,
     preview_pinned: bool,
+    ai_assistant_pinned: bool,
     
     // Preview
     show_injection_preview: bool,
+
+    // Profile Editor
+    show_profile_editor: bool,
+    profile_editor_pinned: bool,
+    loaded_profile: Option<ScrapedProfile>,
+    profile_mask: ProfileMask,
 }
 
 impl Default for MyApp {
@@ -83,14 +95,22 @@ impl Default for MyApp {
             show_latex_builder: false,
             latex_resume: LatexResume::default(),
             show_log_window: false,
+            show_ai_assistant: false,
+            ai_assistant_state: AiAssistantState::default(),
             
             settings_pinned: false,
             builder_pinned: false,
             logs_pinned: false,
             main_pinned: false,
             preview_pinned: false,
+            ai_assistant_pinned: false,
             
             show_injection_preview: false,
+
+            show_profile_editor: false,
+            profile_editor_pinned: false,
+            loaded_profile: None,
+            profile_mask: ProfileMask::default(),
         }
     }
 }
@@ -101,19 +121,23 @@ impl eframe::App for MyApp {
         let mut pinned = self.main_pinned;
         custom_window_frame(ctx, "SUPERPOWERED_CV", |ui| {
             let mut action = None;
+            let config_clone = self.config.clone();
             
             render_main_content(
                 ui,
                 &mut self.input_source,
                 &mut self.output_path,
                 &mut self.injections,
-                &self.config,
+                &config_clone,
                 &mut self.show_settings,
                 &mut self.show_latex_builder,
                 &mut self.show_log_window,
                 &mut self.show_injection_preview,
                 |msg| self.status_log.push(format!("> {}", msg)),
-                || { action = Some(()); }
+                || { action = Some(()); },
+                &mut self.loaded_profile,
+                &mut self.profile_mask,
+                |path| self.config.add_recent_file(&path),
             );
             
             if action.is_some() {
@@ -263,10 +287,48 @@ impl MyApp {
                     Ok(f) => f,
                     Err(e) => { self.log(&format!("Error opening JSON: {}", e)); return; }
                 };
-                let profile: ScrapedProfile = match serde_json::from_reader(file) {
+                let mut profile: ScrapedProfile = match serde_json::from_reader(file) {
                     Ok(p) => p,
                     Err(e) => { self.log(&format!("Error parsing JSON: {}", e)); return; }
                 };
+
+                // Apply Profile Mask
+                if let Some(loaded) = &self.loaded_profile {
+                    // We use the loaded profile if available, as it might be the same one
+                    // But wait, generate_pdf takes a profile.
+                    // We should filter the profile based on the mask.
+                    
+                    let mut filtered_profile = loaded.clone(); // Assuming ScrapedProfile is Clone, which it is derived
+                    
+                    // Filter Experience
+                    let mut new_exp = Vec::new();
+                    for (i, exp) in filtered_profile.experience.iter().enumerate() {
+                        if i < self.profile_mask.experience_enabled.len() && self.profile_mask.experience_enabled[i] {
+                            new_exp.push(exp.clone()); // ScrapedExperience needs Clone
+                        }
+                    }
+                    filtered_profile.experience = new_exp;
+
+                    // Filter Education
+                    let mut new_edu = Vec::new();
+                    for (i, edu) in filtered_profile.education.iter().enumerate() {
+                        if i < self.profile_mask.education_enabled.len() && self.profile_mask.education_enabled[i] {
+                            new_edu.push(edu.clone()); // ScrapedEducation needs Clone
+                        }
+                    }
+                    filtered_profile.education = new_edu;
+
+                    // Filter Skills
+                    let mut new_skills = Vec::new();
+                    for (i, skill) in filtered_profile.skills.iter().enumerate() {
+                        if i < self.profile_mask.skills_enabled.len() && self.profile_mask.skills_enabled[i] {
+                            new_skills.push(skill.clone());
+                        }
+                    }
+                    filtered_profile.skills = new_skills;
+                    
+                    profile = filtered_profile;
+                }
                 
                 let temp_path = std::env::temp_dir().join("superpoweredcv_temp.pdf");
                 if let Err(e) = generator::generate_pdf(&profile, &temp_path, None) {
@@ -313,17 +375,17 @@ impl MyApp {
                 },
                 InjectionTypeGui::UnderlayText => ProfileConfig::UnderlayText,
                 InjectionTypeGui::StructuralFields => ProfileConfig::StructuralFields {
-                    targets: vec![superpoweredcv::analysis::StructuralTarget::PdfTag], // Default for now
+                    targets: vec![StructuralTarget::PdfTag], // Default for now
                 },
                 InjectionTypeGui::PaddingNoise => ProfileConfig::PaddingNoise {
                     padding_tokens_before: 100,
                     padding_tokens_after: 100,
-                    padding_style: superpoweredcv::analysis::PaddingStyle::JobRelated,
+                    padding_style: PaddingStyle::JobRelated,
                     content,
                 },
                 InjectionTypeGui::InlineJobAd => ProfileConfig::InlineJobAd {
-                    job_ad_source: superpoweredcv::analysis::JobAdSource::Inline,
-                    placement: superpoweredcv::analysis::JobAdPlacement::Back,
+                    job_ad_source: JobAdSource::Inline,
+                    placement: JobAdPlacement::Back,
                     ad_excerpt_ratio: 1.0,
                     content,
                 },
