@@ -115,15 +115,7 @@ function getSectionUrl(sectionId) {
     return footerLink ? footerLink.href : null;
 }
 
-// Legacy function kept for compatibility if needed, but unused by new flow
-async function scrapeProfile() {
-    return null;
-}
 
-
-// ...existing code...
-async function scrapeSection(name, scraperFn) {
-// ...existing code...
 
 /**
  * Helper to get text content from a selector.

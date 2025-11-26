@@ -14,6 +14,22 @@ if (-not (Test-Path -Path $srcDir)) {
     exit 1
 }
 
+# Run Lint and Tests
+Write-Host "Running Lint and Tests..." -ForegroundColor Cyan
+Push-Location $srcDir
+try {
+    npm install
+    npm run lint
+    if ($LASTEXITCODE -ne 0) { throw "Linting failed" }
+    npm run test
+    if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
+} catch {
+    Write-Error "Pre-build checks failed: $_"
+    Pop-Location
+    exit 1
+}
+Pop-Location
+
 # Create dist directory
 if (Test-Path -Path $distDir) { 
     Write-Host "Cleaning up old dist directory..." -ForegroundColor Yellow
