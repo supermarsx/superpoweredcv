@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub mod manager;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LatexResume {
     pub personal_info: PersonalInfo,

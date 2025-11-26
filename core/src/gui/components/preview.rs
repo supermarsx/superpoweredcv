@@ -1,7 +1,7 @@
 use eframe::egui;
 
 pub fn render_preview(ui: &mut egui::Ui) {
-    ui.label(egui::RichText::new("VISUAL_DIAGNOSTIC_MODE").strong());
+    ui.label(egui::RichText::new("VISUAL_DIAGNOSTIC_MODE").strong().color(egui::Color32::from_rgb(255, 69, 0)));
     let (rect, _resp) = ui.allocate_at_least(ui.available_size(), egui::Sense::hover());
     let painter = ui.painter_at(rect);
     

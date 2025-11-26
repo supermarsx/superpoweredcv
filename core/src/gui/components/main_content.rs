@@ -7,6 +7,27 @@ use superpoweredcv::llm::LlmClient;
 use superpoweredcv::config::AppConfig;
 use crate::gui::types::{InputSource, InjectionConfigGui, InjectionTypeGui};
 
+/// Renders the main content area of the application.
+///
+/// This function handles the primary workflow:
+/// 1. Input selection (JSON, PDF, URL)
+/// 2. Output path selection
+/// 3. Injection module configuration
+/// 4. Execution trigger
+///
+/// # Arguments
+///
+/// * `ui` - The egui Ui context.
+/// * `input_source` - Mutable reference to the selected input source.
+/// * `output_path` - Mutable reference to the output file path.
+/// * `injections` - Mutable list of configured injection modules.
+/// * `config` - Read-only reference to the application configuration.
+/// * `show_settings` - Toggle for the settings window.
+/// * `show_latex_builder` - Toggle for the LaTeX builder window.
+/// * `show_log_window` - Toggle for the log window.
+/// * `show_injection_preview` - Toggle for the injection preview window.
+/// * `log_fn` - Callback for logging messages.
+/// * `generate_fn` - Callback for triggering the generation process.
 pub fn render_main_content(
     ui: &mut egui::Ui,
     input_source: &mut InputSource,
@@ -20,11 +41,12 @@ pub fn render_main_content(
     mut log_fn: impl FnMut(&str),
     mut generate_fn: impl FnMut(),
 ) {
-    ui.vertical_centered(|ui| {
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        ui.vertical_centered(|ui| {
         ui.add_space(10.0);
         ui.heading(egui::RichText::new("SUPERPOWERED_CV").size(32.0).strong().color(egui::Color32::from_rgb(255, 69, 0)));
         ui.add_space(5.0);
-        ui.label(egui::RichText::new("TARGET: PDF_GENERATION_MODULE").monospace().color(egui::Color32::LIGHT_GRAY));
+        ui.label(egui::RichText::new("TARGET: PDF_GENERATION_MODULE").monospace().color(egui::Color32::WHITE));
         ui.add_space(20.0);
     });
 
@@ -70,7 +92,7 @@ pub fn render_main_content(
                         }
                     }
                     if let Some(p) = path {
-                        ui.label(egui::RichText::new(p.file_name().unwrap().to_string_lossy()).color(egui::Color32::YELLOW));
+                        ui.label(egui::RichText::new(p.file_name().unwrap().to_string_lossy()).color(egui::Color32::from_rgb(255, 69, 0)));
                     } else {
                         ui.label("No file selected");
                     }
@@ -85,7 +107,7 @@ pub fn render_main_content(
                         }
                     }
                     if let Some(p) = path {
-                        ui.label(egui::RichText::new(p.file_name().unwrap().to_string_lossy()).color(egui::Color32::YELLOW));
+                        ui.label(egui::RichText::new(p.file_name().unwrap().to_string_lossy()).color(egui::Color32::from_rgb(255, 69, 0)));
                     } else {
                         ui.label("No file selected");
                     }
@@ -118,9 +140,9 @@ pub fn render_main_content(
                 }
             }
             if let Some(path) = output_path {
-                ui.label(egui::RichText::new(path.file_name().unwrap().to_string_lossy()).monospace().color(egui::Color32::YELLOW));
+                ui.label(egui::RichText::new(path.file_name().unwrap().to_string_lossy()).monospace().color(egui::Color32::from_rgb(255, 69, 0)));
             } else {
-                ui.label(egui::RichText::new("NO_PATH").monospace().color(egui::Color32::DARK_GRAY));
+                ui.label(egui::RichText::new("NO_PATH").monospace().color(egui::Color32::WHITE));
             }
         });
     });
@@ -276,5 +298,6 @@ pub fn render_main_content(
         if ui.add(btn).clicked() {
             generate_fn();
         }
+    });
     });
 }

@@ -11,24 +11,24 @@ pub fn setup_custom_fonts(ctx: &egui::Context) {
 pub fn setup_custom_styles(ctx: &egui::Context) {
     let mut visuals = egui::Visuals::dark();
     // Brutalist Palette
-    let bg_color = egui::Color32::from_rgb(15, 15, 15);
-    let fg_color = egui::Color32::from_rgb(240, 240, 240);
-    let accent_color = egui::Color32::from_rgb(255, 50, 50); // Red
-    let border_color = egui::Color32::from_rgb(80, 80, 80);
+    let bg_color = egui::Color32::from_rgb(10, 10, 10);
+    let fg_color = egui::Color32::from_rgb(255, 255, 255);
+    let accent_color = egui::Color32::from_rgb(255, 69, 0); // Red-Orange (Fireish)
+    let border_color = egui::Color32::from_rgb(255, 255, 255); // White borders for brutalist look
 
     visuals.window_fill = bg_color;
     visuals.panel_fill = bg_color;
     visuals.window_corner_radius = egui::CornerRadius::ZERO;
     visuals.window_stroke = egui::Stroke::new(2.0, border_color);
     
-    visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, border_color);
+    visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(2.0, border_color);
     visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, fg_color);
     
-    visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(30, 30, 30);
-    visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, border_color);
+    visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(20, 20, 20);
+    visuals.widgets.inactive.bg_stroke = egui::Stroke::new(2.0, border_color);
     visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, fg_color);
     
-    visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(50, 50, 50);
+    visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(40, 40, 40);
     visuals.widgets.hovered.bg_stroke = egui::Stroke::new(2.0, accent_color);
     visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, fg_color);
     
@@ -43,9 +43,9 @@ pub fn setup_custom_styles(ctx: &egui::Context) {
     
     // Spacing
     let mut style = (*ctx.style()).clone();
-    style.spacing.item_spacing = egui::vec2(10.0, 10.0);
-    style.spacing.window_margin = egui::Margin::same(15);
-    style.spacing.button_padding = egui::vec2(10.0, 5.0);
+    style.spacing.item_spacing = egui::vec2(15.0, 15.0);
+    style.spacing.window_margin = egui::Margin::same(20);
+    style.spacing.button_padding = egui::vec2(15.0, 10.0);
     ctx.set_style(style);
 }
 
@@ -58,7 +58,7 @@ pub fn custom_window_frame(
     use egui::*;
     let panel_frame = Frame {
         fill: ctx.style().visuals.window_fill(),
-        corner_radius: 10.into(),
+        corner_radius: 0.into(),
         stroke: ctx.style().visuals.window_stroke(),
         ..Default::default()
     };
