@@ -157,19 +157,26 @@ impl PdfMutator for RealPdfMutator {
                         }
                     }
                 }
-                ProfileConfig::PaddingNoise { padding_tokens_before, padding_tokens_after, padding_style } => {
-                    let noise = generate_noise(Some(*padding_tokens_before as u32), Some(*padding_tokens_after as u32), padding_style);
-                    final_injected_text = noise.clone();
+                ProfileConfig::PaddingNoise { padding_tokens_before, padding_tokens_after, padding_style, content } => {
+                    let noise_before = generate_noise(Some(*padding_tokens_before as u32), None, padding_style);
+                    let noise_after = generate_noise(None, Some(*padding_tokens_after as u32), padding_style);
+                    let text_to_inject = get_injection_text(content, default_text);
+                    
+                    let full_text = format!("{} {} {}", noise_before, text_to_inject, noise_after);
+                    final_injected_text = full_text.clone();
+                    
                     // Inject as low visibility text at the end
-                    pdf_utils::add_text_to_page(&mut doc, 1, &noise, 50.0, 10.0, 1.0, 0.99)?;
-                    notes.push(format!("Injected padding noise ({:?})", padding_style));
+                    pdf_utils::add_text_to_page(&mut doc, 1, &full_text, 50.0, 10.0, 1.0, 0.99)?;
+                    notes.push(format!("Injected padding noise ({:?}) with content", padding_style));
                 }
-                ProfileConfig::InlineJobAd { job_ad_source, placement, ad_excerpt_ratio: _ } => {
+                ProfileConfig::InlineJobAd { job_ad_source, placement, ad_excerpt_ratio: _, content } => {
                     let ad_text = match job_ad_source {
                         crate::analysis::JobAdSource::Inline => "Senior Software Engineer required. Must have Rust experience.".to_string(), // Placeholder
                         _ => "Job Ad Content Placeholder".to_string(),
                     };
-                    final_injected_text = ad_text.clone();
+                    let text_to_inject = get_injection_text(content, default_text);
+                    let full_text = format!("{} {}", text_to_inject, ad_text);
+                    final_injected_text = full_text.clone();
                     
                     let (x, y) = match placement {
                         crate::analysis::JobAdPlacement::Front => (50.0, 800.0),
@@ -180,8 +187,8 @@ impl PdfMutator for RealPdfMutator {
                     // Inject as visible text (or low vis depending on intent, assuming visible for now based on name)
                     // Spec says "Inline Job Ad", usually implies visible or hidden. Let's assume hidden/low-vis for red-teaming context usually,
                     // but "Inline" might mean visible. Let's use small white text for safety in this context.
-                    pdf_utils::add_text_to_page(&mut doc, 1, &ad_text, x, y, 4.0, 0.95)?;
-                    notes.push(format!("Injected inline job ad ({:?})", placement));
+                    pdf_utils::add_text_to_page(&mut doc, 1, &full_text, x, y, 4.0, 0.95)?;
+                    notes.push(format!("Injected inline job ad ({:?}) with content", placement));
                 }
                 ProfileConfig::TrackingPixel { url } => {
                     // Inject a URI Action on a Link Annotation (invisible rectangle)

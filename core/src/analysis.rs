@@ -553,7 +553,10 @@ impl PipelineExecutor for LocalPipelineExecutor {
         }
 
         // Check for injection phrases
-        let injection_detected = extracted_text.contains("Ignore previous") || extracted_text.contains("IMPORTANT SYSTEM NOTE");
+        let injection_detected = extracted_text.contains("Ignore previous") 
+            || extracted_text.contains("IMPORTANT SYSTEM NOTE")
+            || extracted_text.contains("INTERNAL EVALUATION DIRECTIVE")
+            || extracted_text.contains("Note to the automated reviewer");
 
         let notes = vec![
             format!("Extracted {} chars", extracted_text.len()),

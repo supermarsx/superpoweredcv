@@ -60,6 +60,14 @@ enum Commands {
         /// Phrases to inject (for Static generation)
         #[arg(long)]
         phrases: Vec<String>,
+
+        /// Generation Type
+        #[arg(long, value_enum, default_value_t = CliGenerationType::Static)]
+        generation_type: CliGenerationType,
+
+        /// Job Description (for AdTargeted/LlmGenerated)
+        #[arg(long)]
+        job_description: Option<String>,
     },
     /// Inject a payload into an existing PDF
     Inject {
@@ -75,6 +83,18 @@ enum Commands {
         /// Payload content (text, url, or code)
         #[arg(long)]
         payload: Option<String>,
+
+        /// Phrases to inject
+        #[arg(long)]
+        phrases: Vec<String>,
+
+        /// Generation Type
+        #[arg(long, value_enum, default_value_t = CliGenerationType::Static)]
+        generation_type: CliGenerationType,
+
+        /// Job Description
+        #[arg(long)]
+        job_description: Option<String>,
     },
     /// Preview the injection layout (generates a dummy PDF)
     Preview {
@@ -94,6 +114,18 @@ enum CliInjectionType {
     Offpage,
     TrackingPixel,
     CodeInjection,
+    UnderlayText,
+    StructuralFields,
+    PaddingNoise,
+    InlineJobAd,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum CliGenerationType {
+    Static,
+    LlmControl,
+    Pollution,
+    AdTargeted,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -123,9 +155,9 @@ fn main() {
         Some(Commands::Demo) => {
             run_demo_scenario();
         }
-        Some(Commands::Inject { input, output, type_, payload }) => {
+        Some(Commands::Inject { input, output, type_, payload, phrases, generation_type, job_description }) => {
             println!("Injecting {:?} into {:?} -> {:?}", type_, input, output);
-            // Placeholder for injection logic
+            inject_pdf(input, output, type_, payload, phrases, generation_type, job_description);
         }
         Some(Commands::Preview { output }) => {
             println!("Generating preview at {:?}", output);
@@ -143,8 +175,8 @@ fn main() {
                 eprintln!("Error: --config argument is required for 'validate' command.");
             }
         }
-        Some(Commands::Generate { profile, output, injection, intensity, position, phrases }) => {
-            generate_pdf_from_json(profile, output, injection, intensity, position, phrases);
+        Some(Commands::Generate { profile, output, injection, intensity, position, phrases, generation_type, job_description }) => {
+            generate_pdf_from_json(profile, output, injection, intensity, position, phrases, generation_type, job_description);
         }
         None => {
             println!("Starting GUI...");
@@ -163,7 +195,9 @@ fn generate_pdf_from_json(
     injection: &CliInjectionType,
     intensity: &CliIntensity,
     position: &CliPosition,
-    phrases: &Vec<String>
+    phrases: &Vec<String>,
+    generation_type: &CliGenerationType,
+    job_description: &Option<String>
 ) {
     let file = match StdFile::open(profile_path) {
         Ok(f) => f,
@@ -191,8 +225,13 @@ fn generate_pdf_from_json(
     // 2. Prepare Injection
     let content = superpoweredcv::analysis::InjectionContent {
         phrases: phrases.clone(),
-        generation_type: superpoweredcv::templates::GenerationType::Static,
-        job_description: None,
+        generation_type: match generation_type {
+            CliGenerationType::Static => superpoweredcv::templates::GenerationType::Static,
+            CliGenerationType::AdTargeted => superpoweredcv::templates::GenerationType::AdTargeted,
+            CliGenerationType::LlmControl => superpoweredcv::templates::GenerationType::LlmControl,
+            CliGenerationType::Pollution => superpoweredcv::templates::GenerationType::Pollution,
+        },
+        job_description: job_description.clone(),
     };
 
     let injection_config = match injection {
@@ -225,6 +264,22 @@ fn generate_pdf_from_json(
         CliInjectionType::CodeInjection => Some(ProfileConfig::CodeInjection {
             payload: phrases.join(" "),
         }),
+        CliInjectionType::UnderlayText => Some(ProfileConfig::UnderlayText),
+        CliInjectionType::StructuralFields => Some(ProfileConfig::StructuralFields {
+            targets: vec![superpoweredcv::analysis::StructuralTarget::PdfTag],
+        }),
+        CliInjectionType::PaddingNoise => Some(ProfileConfig::PaddingNoise {
+            padding_tokens_before: 100,
+            padding_tokens_after: 100,
+            padding_style: superpoweredcv::analysis::PaddingStyle::JobRelated,
+            content,
+        }),
+        CliInjectionType::InlineJobAd => Some(ProfileConfig::InlineJobAd {
+            job_ad_source: superpoweredcv::analysis::JobAdSource::Inline,
+            placement: superpoweredcv::analysis::JobAdPlacement::Back,
+            ad_excerpt_ratio: 1.0,
+            content,
+        }),
     };
 
     if let Some(config) = injection_config {
@@ -254,6 +309,96 @@ fn generate_pdf_from_json(
         } else {
             println!("Clean PDF generated successfully at {}", output_path.display());
         }
+    }
+}
+
+fn inject_pdf(
+    input_path: &PathBuf, 
+    output_path: &PathBuf, 
+    injection_type: &CliInjectionType, 
+    payload: &Option<String>,
+    phrases: &Vec<String>,
+    generation_type: &CliGenerationType,
+    job_description: &Option<String>
+) {
+    let mut effective_phrases = phrases.clone();
+    if let Some(p) = payload {
+        effective_phrases.push(p.clone());
+    }
+
+    let content = superpoweredcv::analysis::InjectionContent {
+        phrases: effective_phrases.clone(),
+        generation_type: match generation_type {
+            CliGenerationType::Static => superpoweredcv::templates::GenerationType::Static,
+            CliGenerationType::AdTargeted => superpoweredcv::templates::GenerationType::AdTargeted,
+            CliGenerationType::LlmControl => superpoweredcv::templates::GenerationType::LlmControl,
+            CliGenerationType::Pollution => superpoweredcv::templates::GenerationType::Pollution,
+        },
+        job_description: job_description.clone(),
+    };
+
+    let injection_config = match injection_type {
+        CliInjectionType::None => None,
+        CliInjectionType::VisibleMeta => Some(ProfileConfig::VisibleMetaBlock {
+            position: InjectionPosition::Footer,
+            intensity: Intensity::Medium,
+            content,
+        }),
+        CliInjectionType::LowVis => Some(ProfileConfig::LowVisibilityBlock {
+            font_size_min: 1,
+            font_size_max: 1,
+            color_profile: superpoweredcv::analysis::LowVisibilityPalette::Gray,
+            content,
+        }),
+        CliInjectionType::Offpage => Some(ProfileConfig::OffpageLayer {
+            offset_strategy: superpoweredcv::analysis::OffpageOffset::BottomClip,
+            content,
+        }),
+        CliInjectionType::TrackingPixel => Some(ProfileConfig::TrackingPixel {
+            url: effective_phrases.first().cloned().unwrap_or_else(|| "https://canarytokens.org/pixel".to_string()),
+        }),
+        CliInjectionType::CodeInjection => Some(ProfileConfig::CodeInjection {
+            payload: effective_phrases.join(" "),
+        }),
+        CliInjectionType::UnderlayText => Some(ProfileConfig::UnderlayText),
+        CliInjectionType::StructuralFields => Some(ProfileConfig::StructuralFields {
+            targets: vec![superpoweredcv::analysis::StructuralTarget::PdfTag],
+        }),
+        CliInjectionType::PaddingNoise => Some(ProfileConfig::PaddingNoise {
+            padding_tokens_before: 100,
+            padding_tokens_after: 100,
+            padding_style: superpoweredcv::analysis::PaddingStyle::JobRelated,
+            content,
+        }),
+        CliInjectionType::InlineJobAd => Some(ProfileConfig::InlineJobAd {
+            job_ad_source: superpoweredcv::analysis::JobAdSource::Inline,
+            placement: superpoweredcv::analysis::JobAdPlacement::Back,
+            ad_excerpt_ratio: 1.0,
+            content,
+        }),
+    };
+
+    if let Some(config) = injection_config {
+        let mutator = RealPdfMutator::new(output_path.parent().unwrap());
+        let request = PdfMutationRequest {
+            base_pdf: input_path.clone(),
+            profiles: vec![config],
+            template: default_templates().into_iter().find(|t| t.id == "default").unwrap_or_else(|| default_templates()[0].clone()),
+            variant_id: Some(output_path.file_stem().unwrap().to_string_lossy().to_string()),
+        };
+
+        match mutator.mutate(request) {
+            Ok(res) => {
+                if let Err(e) = std::fs::rename(&res.mutated_pdf, output_path) {
+                    eprintln!("Failed to move output file: {}", e);
+                } else {
+                    println!("PDF injected successfully at {}", output_path.display());
+                }
+            }
+            Err(e) => eprintln!("Failed to inject PDF: {}", e),
+        }
+    } else {
+        eprintln!("No injection type specified.");
     }
 }
 
@@ -318,6 +463,7 @@ fn run_demo_scenario() {
                     padding_tokens_before: 256,
                     padding_tokens_after: 256,
                     padding_style: PaddingStyle::JobRelated,
+                    content: Default::default(),
                 },
                 template_id: "aggressive_override".into(),
             },
@@ -327,6 +473,7 @@ fn run_demo_scenario() {
                     job_ad_source: JobAdSource::Inline,
                     placement: JobAdPlacement::AfterSummary,
                     ad_excerpt_ratio: 0.5,
+                    content: Default::default(),
                 },
                 template_id: "override_conflict".into(),
             },

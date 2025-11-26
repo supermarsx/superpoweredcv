@@ -6,26 +6,89 @@ SuperpoweredCV is a comprehensive tool designed for red-teaming ATS (Applicant T
 The project consists of three main components:
 1.  **Core CLI**: A Rust-based command-line tool for analysis and PDF generation.
 2.  **Browser Extension**: A Chrome/Firefox extension to scrape profile data.
-## CLI Commands
+## CLI Reference
 
 The `superpoweredcv` CLI provides a suite of tools for generating, injecting, and analyzing resumes.
 
-### General
-*   `superpoweredcv docs`: Open the documentation in your default browser.
-*   `superpoweredcv --help`: Show the help message and list of commands.
+### Global Options
+*   `-c, --config <FILE>`: Path to a configuration file (YAML, JSON, TOML).
 
-### Generation & Injection
-*   `superpoweredcv generate --profile <json_path> --output <pdf_path>`: Generate a PDF resume from a scraped JSON profile.
-    *   `--injection <type>`: Specify injection type (`VisibleMeta`, `LowVis`, `Offpage`, `TrackingPixel`, `CodeInjection`).
-    *   `--intensity <level>`: Set intensity (`Soft`, `Medium`, `Aggressive`).
-    *   `--position <pos>`: Set position (`Header`, `Footer`).
-*   `superpoweredcv inject --input <pdf_path> --output <pdf_path> --type <type> --payload <content>`: Inject a payload into an existing PDF.
-*   `superpoweredcv preview --output <pdf_path>`: Generate a preview PDF showing injection layouts.
+### Commands
 
-### Analysis
-*   `superpoweredcv analyze --scenario <path>`: Run an analysis scenario defined in a file.
-*   `superpoweredcv demo`: Run the built-in demo scenario.
-*   `superpoweredcv validate --config <path>`: Validate a configuration file.
+#### `generate`
+Generate a PDF resume from a scraped JSON profile with optional injections.
+
+```bash
+superpoweredcv generate --profile <PROFILE_JSON> --output <OUTPUT_PDF> [OPTIONS]
+```
+
+**Arguments:**
+*   `-p, --profile <FILE>`: Path to the profile JSON file (Required).
+*   `-o, --output <FILE>`: Output PDF path (Required).
+*   `--injection <TYPE>`: Type of injection to apply.
+    *   Values: `None` (default), `VisibleMeta`, `LowVis`, `Offpage`, `TrackingPixel`, `CodeInjection`, `UnderlayText`, `StructuralFields`, `PaddingNoise`, `InlineJobAd`.
+*   `--intensity <LEVEL>`: Intensity of the injection.
+    *   Values: `Soft`, `Medium` (default), `Aggressive`.
+*   `--position <POS>`: Position of the injection (for `VisibleMeta`).
+    *   Values: `Header` (default), `Footer`.
+*   `--phrases <PHRASE>...`: List of phrases to inject. Can be specified multiple times.
+*   `--generation-type <TYPE>`: Strategy for generating injection content.
+    *   Values: `Static` (default), `LlmControl`, `Pollution`, `AdTargeted`.
+*   `--job-description <TEXT>`: Job description text (required for `AdTargeted` generation).
+
+#### `inject`
+Inject a payload into an existing PDF file.
+
+```bash
+superpoweredcv inject --input <INPUT_PDF> --output <OUTPUT_PDF> --type <TYPE> [OPTIONS]
+```
+
+**Arguments:**
+*   `-i, --input <FILE>`: Path to the input PDF (Required).
+*   `-o, --output <FILE>`: Path to the output PDF (Required).
+*   `--type <TYPE>`: Type of injection (Required). See `generate` for values.
+*   `--payload <TEXT>`: Specific payload content (e.g., URL for tracking pixel, code for XSS).
+*   `--phrases <PHRASE>...`: List of phrases to inject.
+*   `--generation-type <TYPE>`: Strategy for generating content.
+*   `--job-description <TEXT>`: Job description text.
+
+#### `analyze`
+Run an analysis scenario to test how an ATS parses the resume.
+
+```bash
+superpoweredcv analyze --scenario <SCENARIO_FILE>
+```
+
+**Arguments:**
+*   `-s, --scenario <FILE>`: Path to the scenario definition file.
+
+#### `demo`
+Run the built-in demo scenario to verify system functionality.
+
+```bash
+superpoweredcv demo
+```
+
+#### `preview`
+Generate a preview PDF showing where injections would be placed.
+
+```bash
+superpoweredcv preview --output <FILE>
+```
+
+#### `validate`
+Validate a configuration file.
+
+```bash
+superpoweredcv validate --config <FILE>
+```
+
+#### `docs`
+Open the documentation in your default browser.
+
+```bash
+superpoweredcv docs
+```
 
 ## GUI Mode
 Running `superpoweredcv` without arguments launches the graphical user interface.
