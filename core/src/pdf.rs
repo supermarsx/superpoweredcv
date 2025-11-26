@@ -71,10 +71,6 @@ impl PdfMutator for RealPdfMutator {
         let mut doc = Document::load(&request.base_pdf)
             .map_err(|e| crate::AnalysisError::PdfError(format!("Failed to load PDF: {}", e)))?;
 
-        let mut notes: Vec<String> = Vec::new();
-        let default_text = &request.template.text_template;
-        let mut final_injected_text = default_text.clone();
-
         let mut notes = Vec::new();
         let default_text = &request.template.text_template;
         let mut final_injected_text = default_text.clone();

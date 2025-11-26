@@ -7,6 +7,7 @@ pub mod templates;
 pub mod generator;
 pub mod config;
 pub mod llm;
+pub mod latex;
 
 /// A specialized result type for Analysis operations.
 pub type Result<T> = std::result::Result<T, AnalysisError>;

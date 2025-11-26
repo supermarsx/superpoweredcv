@@ -189,7 +189,7 @@ fn generate_pdf_from_json(
         let request = PdfMutationRequest {
             base_pdf: temp_path,
             profiles: vec![config],
-            template: default_templates().get("default").unwrap().clone(),
+            template: default_templates().into_iter().find(|t| t.id == "default").unwrap_or_else(|| default_templates()[0].clone()),
             variant_id: Some(output_path.file_stem().unwrap().to_string_lossy().to_string()),
         };
 

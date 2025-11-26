@@ -7,6 +7,7 @@ use superpoweredcv::templates::{GenerationType, default_templates};
 use superpoweredcv::config::AppConfig;
 use superpoweredcv::llm::LlmClient;
 use superpoweredcv::pdf::{PdfMutator, RealPdfMutator, PdfMutationRequest};
+use superpoweredcv::latex::LatexResume;
 use std::fs::File;
 
 pub fn run_gui() -> eframe::Result<()> {
@@ -84,6 +85,13 @@ struct MyApp {
     config: AppConfig,
     show_settings: bool,
     selected_provider: LlmProvider,
+
+    // Latex Builder
+    show_latex_builder: bool,
+    latex_resume: LatexResume,
+
+    // Log Window
+    show_log_window: bool,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -107,6 +115,9 @@ impl Default for MyApp {
             config: AppConfig::load(),
             show_settings: false,
             selected_provider: LlmProvider::LMStudio,
+            show_latex_builder: false,
+            latex_resume: LatexResume::default(),
+            show_log_window: false,
         }
     }
 }
@@ -115,13 +126,46 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Settings Window
         if self.show_settings {
+            let mut open = true;
             egui::Window::new("CONFIGURATION_MATRIX")
-                .open(&mut self.show_settings)
+                .open(&mut open)
                 .resizable(true)
                 .default_width(500.0)
                 .show(ctx, |ui| {
                     self.render_settings(ui);
                 });
+            self.show_settings = open;
+        }
+
+        // Latex Builder Window
+        if self.show_latex_builder {
+            let mut open = true;
+            egui::Window::new("LATEX_VISUAL_BUILDER")
+                .open(&mut open)
+                .resizable(true)
+                .default_width(800.0)
+                .default_height(600.0)
+                .show(ctx, |ui| {
+                    self.render_latex_builder(ui);
+                });
+            self.show_latex_builder = open;
+        }
+
+        // Log Window
+        if self.show_log_window {
+            let mut open = true;
+            egui::Window::new("SYSTEM_LOGS")
+                .open(&mut open)
+                .resizable(true)
+                .default_width(400.0)
+                .show(ctx, |ui| {
+                    egui::ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
+                        for log in &self.status_log {
+                            ui.label(egui::RichText::new(log).monospace().size(10.0));
+                        }
+                    });
+                });
+            self.show_log_window = open;
         }
 
         egui::CentralPanel::default().frame(egui::Frame::NONE.inner_margin(20.0)).show(ctx, |ui| {
@@ -137,6 +181,12 @@ impl eframe::App for MyApp {
             ui.horizontal(|ui| {
                 if ui.button("⚙ SETTINGS").clicked() {
                     self.show_settings = true;
+                }
+                if ui.button("📝 LATEX BUILDER").clicked() {
+                    self.show_latex_builder = true;
+                }
+                if ui.button("📋 LOGS").clicked() {
+                    self.show_log_window = true;
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(egui::RichText::new("v1.0.0-alpha").weak().small());
@@ -158,13 +208,14 @@ impl eframe::App for MyApp {
 
                 ui.add_space(5.0);
 
+                let mut log_msg = None;
                 match &mut self.input_source {
                     InputSource::JsonFile(path) => {
                         ui.horizontal(|ui| {
                             if ui.button("SELECT JSON").clicked() {
                                 if let Some(p) = FileDialog::new().add_filter("json", &["json"]).pick_file() {
                                     *path = Some(p);
-                                    self.log("INPUT: JSON_SELECTED");
+                                    log_msg = Some("INPUT: JSON_SELECTED");
                                 }
                             }
                             if let Some(p) = path {
@@ -179,7 +230,7 @@ impl eframe::App for MyApp {
                             if ui.button("SELECT PDF").clicked() {
                                 if let Some(p) = FileDialog::new().add_filter("pdf", &["pdf"]).pick_file() {
                                     *path = Some(p);
-                                    self.log("INPUT: PDF_SELECTED");
+                                    log_msg = Some("INPUT: PDF_SELECTED");
                                 }
                             }
                             if let Some(p) = path {
@@ -196,6 +247,9 @@ impl eframe::App for MyApp {
                         });
                         ui.label(egui::RichText::new("Note: URL scraping requires external browser extension.").small().italics());
                     }
+                }
+                if let Some(msg) = log_msg {
+                    self.log(msg);
                 }
             });
 
@@ -238,6 +292,7 @@ impl eframe::App for MyApp {
 
                 egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                     let mut to_remove = None;
+                    let mut pending_error = None;
                     for (idx, injection) in self.injections.iter_mut().enumerate() {
                         ui.push_id(idx, |ui| {
                             ui.group(|ui| {
@@ -324,7 +379,7 @@ impl eframe::App for MyApp {
                                             
                                             match client.generate(&final_prompt) {
                                                 Ok(c) => injection.phrases.push(c),
-                                                Err(e) => self.log(&format!("LLM Error: {}", e)),
+                                                Err(e) => pending_error = Some(format!("LLM Error: {}", e)),
                                             }
                                         }
                                     }
@@ -337,7 +392,7 @@ impl eframe::App for MyApp {
                                             injection.current_phrase.clear();
                                         }
                                     });
-                                    for (pi, p) in injection.phrases.iter().enumerate() {
+                                    for (_pi, p) in injection.phrases.iter().enumerate() {
                                         ui.label(format!("• {}", p));
                                     }
                                 });
@@ -345,8 +400,11 @@ impl eframe::App for MyApp {
                         });
                         ui.add_space(5.0);
                     }
-                    if let Some(i) = to_remove {
-                        self.injections.remove(i);
+                    if let Some(idx) = to_remove {
+                        self.injections.remove(idx);
+                    }
+                    if let Some(e) = pending_error {
+                        self.log(&e);
                     }
                 });
             });
@@ -556,7 +614,7 @@ impl MyApp {
         let request = PdfMutationRequest {
             base_pdf: base_pdf_path,
             profiles,
-            template: default_templates().get("default").unwrap().clone(), // Fallback template
+            template: default_templates().into_iter().find(|t| t.id == "default").unwrap_or_else(|| default_templates()[0].clone()), // Fallback template
             variant_id: Some(output.file_stem().unwrap().to_string_lossy().to_string()),
         };
 
@@ -572,6 +630,102 @@ impl MyApp {
             }
             Err(e) => self.log(&format!("Error mutating PDF: {}", e)),
         }
+    }
+
+    fn render_latex_builder(&mut self, ui: &mut egui::Ui) {
+        ui.columns(2, |columns| {
+            // Left Column: Editor
+            columns[0].vertical(|ui| {
+                ui.heading("Content Editor");
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.collapsing("Personal Info", |ui| {
+                        ui.text_edit_singleline(&mut self.latex_resume.personal_info.name).on_hover_text("Name");
+                        ui.text_edit_singleline(&mut self.latex_resume.personal_info.email).on_hover_text("Email");
+                        ui.text_edit_singleline(&mut self.latex_resume.personal_info.phone).on_hover_text("Phone");
+                        ui.text_edit_singleline(&mut self.latex_resume.personal_info.linkedin).on_hover_text("LinkedIn");
+                        ui.text_edit_singleline(&mut self.latex_resume.personal_info.github).on_hover_text("GitHub");
+                    });
+
+                    ui.separator();
+                    ui.heading("Sections");
+                    
+                    let mut section_to_remove = None;
+                    for (idx, section) in self.latex_resume.sections.iter_mut().enumerate() {
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.text_edit_singleline(&mut section.title);
+                                if ui.button("X").clicked() {
+                                    section_to_remove = Some(idx);
+                                }
+                            });
+                            
+                            let mut item_to_remove = None;
+                            for (i_idx, item) in section.items.iter_mut().enumerate() {
+                                ui.separator();
+                                ui.text_edit_singleline(&mut item.title).on_hover_text("Title");
+                                ui.text_edit_singleline(&mut item.subtitle).on_hover_text("Subtitle");
+                                ui.text_edit_singleline(&mut item.date).on_hover_text("Date");
+                                
+                                ui.label("Description Points:");
+                                let mut desc_to_remove = None;
+                                for (d_idx, desc) in item.description.iter_mut().enumerate() {
+                                    ui.horizontal(|ui| {
+                                        ui.text_edit_singleline(desc);
+                                        if ui.button("-").clicked() {
+                                            desc_to_remove = Some(d_idx);
+                                        }
+                                    });
+                                }
+                                if let Some(d) = desc_to_remove {
+                                    item.description.remove(d);
+                                }
+                                if ui.button("+ Add Point").clicked() {
+                                    item.description.push(String::new());
+                                }
+
+                                if ui.button("Remove Item").clicked() {
+                                    item_to_remove = Some(i_idx);
+                                }
+                            }
+                            if let Some(i) = item_to_remove {
+                                section.items.remove(i);
+                            }
+                            if ui.button("+ Add Item").clicked() {
+                                section.items.push(superpoweredcv::latex::SectionItem {
+                                    title: "New Item".to_string(),
+                                    subtitle: "Subtitle".to_string(),
+                                    date: "Date".to_string(),
+                                    description: vec![],
+                                });
+                            }
+                        });
+                    }
+                    if let Some(s) = section_to_remove {
+                        self.latex_resume.sections.remove(s);
+                    }
+                    
+                    if ui.button("+ Add Section").clicked() {
+                        self.latex_resume.sections.push(superpoweredcv::latex::ResumeSection {
+                            title: "New Section".to_string(),
+                            items: vec![],
+                        });
+                    }
+                });
+            });
+
+            // Right Column: Preview
+            columns[1].vertical(|ui| {
+                ui.heading("LaTeX Preview");
+                let latex_code = self.latex_resume.generate_latex();
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.add(egui::TextEdit::multiline(&mut latex_code.as_str()).code_editor().desired_width(f32::INFINITY));
+                });
+                
+                if ui.button("COPY TO CLIPBOARD").clicked() {
+                    ui.ctx().copy_text(latex_code);
+                }
+            });
+        });
     }
 }
 

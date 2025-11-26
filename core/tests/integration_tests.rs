@@ -19,11 +19,11 @@ fn test_pdf_mutation_visible_block() {
     
     let request = PdfMutationRequest {
         base_pdf: base_pdf_path,
-        profile: ProfileConfig::VisibleMetaBlock {
+        profiles: vec![ProfileConfig::VisibleMetaBlock {
             position: InjectionPosition::Header,
             intensity: Intensity::Medium,
             content: Default::default(),
-        },
+        }],
         template: AnalysisTemplate {
             id: "test_template".to_string(),
             severity: TemplateSeverity::Low,
@@ -58,12 +58,12 @@ fn test_pdf_mutation_low_visibility() {
     
     let request = PdfMutationRequest {
         base_pdf: base_pdf_path,
-        profile: ProfileConfig::LowVisibilityBlock {
+        profiles: vec![ProfileConfig::LowVisibilityBlock {
             font_size_min: 1,
             font_size_max: 1,
             color_profile: LowVisibilityPalette::Gray,
             content: Default::default(),
-        },
+        }],
         template: AnalysisTemplate {
             id: "test_template".to_string(),
             severity: TemplateSeverity::Low,

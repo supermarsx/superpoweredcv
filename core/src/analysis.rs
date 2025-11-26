@@ -323,7 +323,7 @@ impl AnalysisEngine {
 
             let mutation = mutator.mutate(PdfMutationRequest {
                 base_pdf: scenario.base_pdf.clone(),
-                profile: plan.profile.clone(),
+                profiles: vec![plan.profile.clone()],
                 template: template.clone(),
                 variant_id: Some(variant_id.clone()),
             })?;
