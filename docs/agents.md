@@ -3,14 +3,14 @@ Repository Guidelines
 
 Project Structure & Module Organization
 ---------------------------------------
-- `src/` holds Rust modules: `profile.rs` (UserProfile schema), `templates.rs` (injection text), `pipeline.rs` (AI/ATS pipeline + metrics), `pdf.rs` (PDF mutators), `red_team.rs` (engine + executors), `main.rs` (sample scenario runner).
-- `Cargo.toml` manages dependencies; `target/` is build output; `spec.md` and `spec-red-teaming-module.md` capture product requirements.
+- `core/src/` holds Rust modules: `profile.rs` (UserProfile schema), `templates.rs` (injection text), `pipeline.rs` (AI/ATS pipeline + metrics), `pdf.rs` (PDF mutators), `red_team.rs` (engine + executors), `main.rs` (CLI & GUI entry point), `gui.rs` (SuperGUI implementation).
+- `core/Cargo.toml` manages dependencies; `core/target/` is build output; `spec.md` and `spec-red-teaming-module.md` capture product requirements.
 
 Build, Test, and Development Commands
 -------------------------------------
-- `cargo check` – type-check and lint the crate quickly.
-- `cargo build` – compile the binary and library artifacts.
-- `cargo run` – execute the sample scenario runner; outputs a JSON report stub and writes stub PDF variant artifacts to `target/variants/`.
+- `cd core && cargo check` – type-check and lint the crate quickly.
+- `cd core && cargo build` – compile the binary and library artifacts.
+- `cd core && cargo run` – execute the application (launches GUI by default, or CLI with args).
 
 Coding Style & Naming Conventions
 ---------------------------------

@@ -1,5 +1,6 @@
 pub mod pipeline;
 pub mod pdf;
+pub mod pdf_utils;
 pub mod profile;
 pub mod analysis;
 pub mod templates;

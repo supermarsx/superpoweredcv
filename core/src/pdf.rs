@@ -1,6 +1,7 @@
-use crate::analysis::ProfileConfig;
+use crate::analysis::{ProfileConfig, InjectionPosition, LowVisibilityPalette, OffpageOffset};
 use crate::templates::AnalysisTemplate;
 use crate::Result;
+use crate::pdf_utils;
 use lopdf::{Document, Object, StringFormat, dictionary};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -70,15 +71,44 @@ impl PdfMutator for RealPdfMutator {
         let mut doc = Document::load(&request.base_pdf)
             .map_err(|e| crate::AnalysisError::PdfError(format!("Failed to load PDF: {}", e)))?;
 
-        // Apply injection strategy
-        // For this initial implementation, we use Metadata Injection.
-        // We inject the template content into a custom metadata field.
-        // TODO: Implement other strategies:
-        // - Invisible text injection (white text on white background)
-        // - Font substitution (custom font with swapped glyphs)
-        // - Content stream manipulation (appending text to page content)
+        let mut notes = Vec::new();
+        let text_to_inject = &request.template.text_template;
+
+        match &request.profile {
+            ProfileConfig::VisibleMetaBlock { position, intensity: _ } => {
+                let (x, y) = match position {
+                    InjectionPosition::Header => (50.0, 800.0),
+                    InjectionPosition::Footer => (50.0, 50.0),
+                    InjectionPosition::Section(_) => (50.0, 400.0), // Default to middle for now
+                };
+                // Inject on the first page
+                pdf_utils::add_text_to_page(&mut doc, 1, text_to_inject, x, y, 10.0, 0.0)?;
+                notes.push(format!("Injected visible block at {:?} ({}, {})", position, x, y));
+            }
+            ProfileConfig::LowVisibilityBlock { font_size_min, color_profile, .. } => {
+                let gray_level = match color_profile {
+                    LowVisibilityPalette::Gray => 0.95,
+                    LowVisibilityPalette::LightBlue => 0.90, // Simplified to gray for now
+                    LowVisibilityPalette::OffWhite => 0.99,
+                };
+                // Inject at bottom
+                pdf_utils::add_text_to_page(&mut doc, 1, text_to_inject, 50.0, 20.0, *font_size_min as f64, gray_level)?;
+                notes.push(format!("Injected low visibility block (size: {}, gray: {})", font_size_min, gray_level));
+            }
+            ProfileConfig::OffpageLayer { offset_strategy, .. } => {
+                let (x, y) = match offset_strategy {
+                    OffpageOffset::BottomClip => (50.0, -1000.0),
+                    OffpageOffset::RightClip => (1000.0, 500.0),
+                };
+                pdf_utils::add_text_to_page(&mut doc, 1, text_to_inject, x, y, 12.0, 0.0)?;
+                notes.push(format!("Injected off-page layer at ({}, {})", x, y));
+            }
+            _ => {
+                notes.push("Profile not fully supported yet, falling back to metadata injection".into());
+            }
+        }
         
-        // Ensure Info dictionary exists or get reference to it
+        // Always inject metadata as a backup/marker
         let info_id = match doc.trailer.get(b"Info").ok().and_then(|obj| obj.as_reference().ok()) {
             Some(id) => id,
             None => {
@@ -90,14 +120,10 @@ impl PdfMutator for RealPdfMutator {
 
         if let Ok(info) = doc.get_object_mut(info_id) {
             if let Object::Dictionary(dict) = info {
-                // Inject content into "CustomInjection" field
-                // We use StringFormat::Literal to ensure it's treated as text
                 dict.set(
                     "CustomInjection", 
-                    Object::String(request.template.text_template.clone().into(), StringFormat::Literal)
+                    Object::String(text_to_inject.clone().into(), StringFormat::Literal)
                 );
-                
-                // Also update Producer to mark it as modified by our tool
                 dict.set(
                     "Producer",
                     Object::String("SuperpoweredCV Analysis Tool".into(), StringFormat::Literal)
@@ -106,7 +132,6 @@ impl PdfMutator for RealPdfMutator {
         }
 
         // Save the mutated PDF
-        // We use save_to to write to the output path
         let mut file = fs::File::create(&output_path)?;
         doc.save_to(&mut file)
             .map_err(|e| crate::AnalysisError::PdfError(format!("Failed to save PDF: {}", e)))?;
@@ -121,10 +146,7 @@ impl PdfMutator for RealPdfMutator {
             variant_id,
             mutated_pdf: output_path,
             variant_hash: Some(hash),
-            notes: vec![
-                "RealPdfMutator: Applied metadata injection".into(),
-                format!("Injected content length: {}", request.template.text_template.len()),
-            ],
+            notes,
         })
     }
 }

@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use config::{Config, File};
 use std::path::PathBuf;
+mod gui;
 use superpoweredcv::pipeline::{LoggingConfig, LogField, MetricSpec, MetricType, PipelineConfig, PipelineType};
 use superpoweredcv::analysis::{
     AnalysisPlan, AnalysisScenario, Intensity, InjectionPosition, JobAdPlacement, JobAdSource,
@@ -16,7 +17,7 @@ use std::fs::File as StdFile;
 #[command(about = "SuperpoweredCV CLI Tool", long_about = None)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 
     /// Path to configuration file (yaml, json, toml)
     #[arg(short, long, global = true)]
@@ -50,25 +51,31 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Analyze { scenario } => {
+        Some(Commands::Analyze { scenario }) => {
             if let Some(path) = scenario {
                 run_scenario_from_file(path);
             } else {
                 eprintln!("Error: --scenario argument is required for 'analyze' command.");
             }
         }
-        Commands::Demo => {
+        Some(Commands::Demo) => {
             run_demo_scenario();
         }
-        Commands::Validate => {
+        Some(Commands::Validate) => {
             if let Some(config_path) = &cli.config {
                 validate_config(config_path);
             } else {
                 eprintln!("Error: --config argument is required for 'validate' command.");
             }
         }
-        Commands::Generate { profile, output } => {
+        Some(Commands::Generate { profile, output }) => {
             generate_pdf_from_json(profile, output);
+        }
+        None => {
+            println!("Starting GUI...");
+            if let Err(e) = gui::run_gui() {
+                eprintln!("GUI Error: {}", e);
+            }
         }
     }
 }
@@ -90,7 +97,7 @@ fn generate_pdf_from_json(profile_path: &PathBuf, output_path: &PathBuf) {
         }
     };
 
-    match generator::generate_pdf(&profile, output_path) {
+    match generator::generate_pdf(&profile, output_path, None) {
         Ok(_) => println!("PDF generated successfully at {}", output_path.display()),
         Err(e) => eprintln!("Failed to generate PDF: {}", e),
     }
