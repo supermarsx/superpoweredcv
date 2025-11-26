@@ -19,6 +19,7 @@ use self::components::settings::render_settings;
 use self::components::latex_builder::render_latex_builder;
 use self::components::main_content::render_main_content;
 use crate::gui::components::ai_assistant::{render_ai_assistant, AiAssistantState};
+use crate::gui::components::ats_dashboard::{render_ats_dashboard, AtsDashboardState};
 
 pub fn run_gui() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -63,6 +64,10 @@ struct MyApp {
     // AI Assistant
     show_ai_assistant: bool,
     ai_assistant_state: AiAssistantState,
+
+    // ATS Dashboard
+    show_ats_dashboard: bool,
+    ats_dashboard_state: AtsDashboardState,
     
     // Window States
     settings_pinned: bool,
@@ -71,6 +76,7 @@ struct MyApp {
     main_pinned: bool,
     preview_pinned: bool,
     ai_assistant_pinned: bool,
+    ats_dashboard_pinned: bool,
     
     // Preview
     show_injection_preview: bool,
@@ -97,6 +103,9 @@ impl Default for MyApp {
             show_log_window: false,
             show_ai_assistant: false,
             ai_assistant_state: AiAssistantState::default(),
+
+            show_ats_dashboard: false,
+            ats_dashboard_state: AtsDashboardState::default(),
             
             settings_pinned: false,
             builder_pinned: false,
@@ -104,6 +113,7 @@ impl Default for MyApp {
             main_pinned: false,
             preview_pinned: false,
             ai_assistant_pinned: false,
+            ats_dashboard_pinned: false,
             
             show_injection_preview: false,
 
@@ -133,6 +143,8 @@ impl eframe::App for MyApp {
                 &mut self.show_latex_builder,
                 &mut self.show_log_window,
                 &mut self.show_injection_preview,
+                &mut self.show_ai_assistant,
+                &mut self.show_ats_dashboard,
                 |msg| self.status_log.push(format!("> {}", msg)),
                 || { action = Some(()); },
                 &mut self.loaded_profile,
@@ -238,6 +250,68 @@ impl eframe::App for MyApp {
                 }
             );
             self.logs_pinned = pinned;
+        }
+
+        // AI Assistant Window
+        if self.show_ai_assistant {
+            let mut pinned = self.ai_assistant_pinned;
+            let mut builder = egui::ViewportBuilder::default()
+                .with_title("AI_ASSISTANT")
+                .with_inner_size([500.0, 700.0])
+                .with_decorations(false)
+                .with_transparent(true);
+            
+            if pinned {
+                builder = builder.with_always_on_top();
+            }
+
+            ctx.show_viewport_immediate(
+                egui::ViewportId::from_hash_of("ai_assistant_viewport"),
+                builder,
+                |ctx, _class| {
+                    custom_window_frame(ctx, "AI_ASSISTANT", |ui| {
+                        if let Some(profile) = &mut self.loaded_profile {
+                            render_ai_assistant(ui, &mut self.ai_assistant_state, profile, &self.config, &mut |msg| self.status_log.push(format!("> {}", msg)));
+                        } else {
+                            ui.label("Please load a profile first.");
+                        }
+                    }, &mut pinned);
+                    
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        self.show_ai_assistant = false;
+                    }
+                }
+            );
+            self.ai_assistant_pinned = pinned;
+        }
+
+        // ATS Dashboard Window
+        if self.show_ats_dashboard {
+            let mut pinned = self.ats_dashboard_pinned;
+            let mut builder = egui::ViewportBuilder::default()
+                .with_title("ATS_SIMULATION")
+                .with_inner_size([600.0, 700.0])
+                .with_decorations(false)
+                .with_transparent(true);
+            
+            if pinned {
+                builder = builder.with_always_on_top();
+            }
+
+            ctx.show_viewport_immediate(
+                egui::ViewportId::from_hash_of("ats_dashboard_viewport"),
+                builder,
+                |ctx, _class| {
+                    custom_window_frame(ctx, "ATS_SIMULATION", |ui| {
+                        render_ats_dashboard(ui, &mut self.ats_dashboard_state, &self.config);
+                    }, &mut pinned);
+                    
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        self.show_ats_dashboard = false;
+                    }
+                }
+            );
+            self.ats_dashboard_pinned = pinned;
         }
 
         // Preview Window

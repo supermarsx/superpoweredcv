@@ -44,8 +44,8 @@ Out of scope:
 
 **MUST**
 - Secure ingest of a LinkedIn JSON export and browser extension that extracts only owner profiles.
-- Backend API to accept profile JSON, store versions and render to LaTeX/PDF reliably.
-- Visual web builder (React) that performs inline edits and shows a live rendered PDF.
+- **Rust Desktop Application** (replacing Backend API + Web Builder) for local-first processing.
+- Visual builder (egui) that performs inline edits and shows a live rendered PDF.
 - AI suggestions limited to rewrites and tagging with an explicit confirmation step.
 - ATS/AI read simulation dashboard.
 - Internal PDF red‑team runner usable on test CVs and templates.
@@ -57,7 +57,6 @@ Out of scope:
 
 **CAN (later)**
 - Plugin system for new templates and AI providers.
-- Offline‑only mode with in‑browser LaTeX and local LLM.
 - Extra import sources (other platforms, custom JSON).
 - Advanced red‑team profiles (malformed PDFs, font glyph manipulation, whitespace stego).
 
@@ -71,32 +70,29 @@ Out of scope:
    - Parses the DOM of the user’s own LinkedIn profile.
    - Extracts structured data: About, Experience, Education, Skills, Projects, Certifications, Publications, Volunteering, Contact, Languages.
    - Normalizes and maps data to an internal `UserProfile` schema.
-   - Shows an extraction review UI before sending to backend.
-   - Authenticates to backend via short‑lived token.
+   - Shows an extraction review UI before saving to JSON.
 
-2. **Backend API**
-   - Suggested stack: Node.js (TS) or Python (FastAPI) + PostgreSQL.
+2. **Core Application (Rust Desktop App)**
+   - Stack: Rust + egui + lopdf.
    - Responsibilities:
-     - Receive and validate `UserProfile` JSON.
-     - Store profile versions and layout snapshots.
-     - Render LaTeX templates to PDF.
-     - Serve configuration for the visual builder (blocks, sections, templates).
-     - Proxy AI provider calls (review, rewrite, skills).
-     - Provide ATS/AI read simulation endpoints.
-     - Provide PDF red‑team endpoints (operator only).
+     - Load `UserProfile` JSON.
+     - Render LaTeX templates to PDF (via local `pdflatex`).
+     - Provide Visual Builder UI.
+     - Manage AI provider calls (review, rewrite, skills).
+     - Provide ATS/AI read simulation dashboard.
+     - Provide PDF red‑team injection engine.
 
 3. **LaTeX Rendering Engine**
-   - Uses `xelatex` or `lualatex` with templating (e.g., Jinja2/Handlebars).
+   - Uses local `pdflatex` installation.
    - Manages fonts, icons and layout variants.
    - Exposes multiple templates: classic, modern, minimalist, academic.
 
-4. **Visual CV Builder (Web App)**
-   - Stack: React + TypeScript.
+4. **Visual CV Builder (GUI)**
+   - Stack: Rust (egui).
    - Features:
-     - Drag‑and‑drop section ordering.
-     - Section toggles.
-     - Inline editing with autosave.
-     - Live PDF preview (server render + PDF viewer).
+     - Section toggles and reordering.
+     - Inline editing.
+     - Live PDF preview.
      - Theme/template selector.
      - Panel for **AI review suggestions**.
      - Panel for **ATS/AI read simulation and (optional) red‑team reports**.

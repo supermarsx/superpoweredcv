@@ -1,7 +1,7 @@
 use eframe::egui;
-use superpoweredcv::llm::LlmClient;
-use superpoweredcv::config::AppConfig;
-use superpoweredcv::generator::{ScrapedProfile, ScrapedExperience};
+use crate::llm::LlmClient;
+use crate::config::AppConfig;
+use crate::generator::{ScrapedProfile, ScrapedExperience};
 
 pub struct AiAssistantState {
     pub review_result: Option<String>,

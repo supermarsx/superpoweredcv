@@ -11,6 +11,7 @@ pub mod latex;
 pub mod gui;
 pub mod red_team;
 pub mod simulation;
+pub mod ats_simulation;
 
 /// A specialized result type for Analysis operations.
 pub type Result<T> = std::result::Result<T, AnalysisError>;
@@ -36,4 +37,10 @@ pub enum AnalysisError {
     /// A PDF processing error occurred.
     #[error("PDF error: {0}")]
     PdfError(String),
+    /// An LLM API error occurred.
+    #[error("LLM error: {0}")]
+    LlmError(String),
+    /// A JSON parsing error occurred.
+    #[error("JSON error: {0}")]
+    JsonError(String),
 }

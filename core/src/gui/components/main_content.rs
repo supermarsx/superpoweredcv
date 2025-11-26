@@ -42,6 +42,8 @@ pub fn render_main_content(
     show_latex_builder: &mut bool,
     show_log_window: &mut bool,
     show_injection_preview: &mut bool,
+    show_ai_assistant: &mut bool,
+    show_ats_dashboard: &mut bool,
     mut log_fn: impl FnMut(&str),
     mut generate_fn: impl FnMut(),
     loaded_profile: &mut Option<ScrapedProfile>,
@@ -67,6 +69,12 @@ pub fn render_main_content(
         }
         if ui.button("📋 LOGS").clicked() {
             *show_log_window = true;
+        }
+        if ui.button("🤖 AI ASSISTANT").clicked() {
+            *show_ai_assistant = true;
+        }
+        if ui.button("👁 ATS SIMULATOR").clicked() {
+            *show_ats_dashboard = true;
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.label(egui::RichText::new("v1.0.0-alpha").weak().small());
