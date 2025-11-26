@@ -125,7 +125,7 @@ function getSectionUrl(sectionId) {
 function getText(selector) {
     if (typeof document === 'undefined') return '';
     const el = document.querySelector(selector);
-    return el ? el.innerText.trim() : '';
+    return el ? el.textContent.trim() : '';
 }
 
 /**
@@ -138,13 +138,13 @@ function getDescription(element) {
     const descriptionEl = element.querySelector('[class*="inline-show-more-text"]');
     if (descriptionEl) {
         const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-        if (visibleSpan) return visibleSpan.innerText.trim();
+        if (visibleSpan) return visibleSpan.textContent.trim();
         
         // Fallback: clone and remove visually-hidden
         const clone = descriptionEl.cloneNode(true);
         const hidden = clone.querySelectorAll('.visually-hidden');
         hidden.forEach(el => el.remove());
-        return clone.innerText.trim();
+        return clone.textContent.trim();
     }
     return '';
 }
@@ -237,11 +237,11 @@ function getExperienceFromDoc(doc) {
 
         // Skills
         let skills = [];
-        const skillsContainer = Array.from(item.querySelectorAll('div')).find(div => div.innerText.includes('Skills:'));
+        const skillsContainer = Array.from(item.querySelectorAll('div')).find(div => div.textContent.includes('Skills:'));
         if (skillsContainer) {
             // Be careful not to grab the whole item text
             // Usually skills are in a distinct div
-            const fullText = skillsContainer.innerText.trim();
+            const fullText = skillsContainer.textContent.trim();
             // Check if this div is actually small enough to be just skills
             if (fullText.length < 500) {
                  const skillsText = fullText.replace(/^Skills:\s*/i, '');
@@ -344,20 +344,9 @@ function getEducationFromDoc(doc) {
     }).filter(i => i.school);
 }
 
-/**
- * Scrapes the 'Skills' section.
- * @returns {Promise<Array<string>>} List of skills.
- */
-async function getSkills() {
-    if (typeof document === 'undefined') return [];
-
-    const footerLink = document.querySelector('#skills')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getSkillsFromDoc(doc);
-    }
-    return getSkillsFromDoc(document);
-}
+// ...existing code...
+// Removed unused getSkills
+// ...existing code...
 
 /**
  * Helper to extract skills from a document.
@@ -368,7 +357,7 @@ function getSkillsFromDoc(doc) {
     const items = getSectionItems(doc, 'skills');
     return items.map(item => {
         const skillEl = item.querySelector('.display-flex.align-items-center.mr1.hoverable-link-text span[aria-hidden="true"]') || item.querySelector('span[aria-hidden="true"]');
-        return skillEl ? skillEl.innerText.trim() : '';
+        return skillEl ? skillEl.textContent.trim() : '';
     }).filter(s => s);
 }
 
@@ -501,14 +490,14 @@ async function getContactInfo() {
     sections.forEach(section => {
         const header = section.querySelector('h3');
         if (!header) return;
-        const headerText = header.innerText.toLowerCase();
+        const headerText = header.textContent.toLowerCase();
         
         if (headerText.includes('email')) {
             const link = section.querySelector('a');
-            if (link) contactInfo.email = link.innerText.trim();
+            if (link) contactInfo.email = link.textContent.trim();
         } else if (headerText.includes('phone')) {
             const items = section.querySelectorAll('li, span.t-14');
-            contactInfo.phone = Array.from(items).map(i => i.innerText.trim()).filter(t => t);
+            contactInfo.phone = Array.from(items).map(i => i.textContent.trim()).filter(t => t);
         } else if (headerText.includes('website')) {
             const items = section.querySelectorAll('a');
             contactInfo.websites = Array.from(items).map(i => i.href);

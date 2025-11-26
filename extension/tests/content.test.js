@@ -10,7 +10,7 @@ describe('Content Script', () => {
 
     test('getText returns text content', () => {
         const dummyEl = document.createElement('div');
-        dummyEl.innerText = '  Hello World  ';
+        dummyEl.textContent = '  Hello World  ';
         jest.spyOn(document, 'querySelector').mockReturnValue(dummyEl);
         expect(content.getText('h1')).toBe('Hello World');
     });

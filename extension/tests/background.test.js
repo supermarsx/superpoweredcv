@@ -39,15 +39,17 @@ describe('Background Script', () => {
     });
 
     test('ensureContentScriptReady injects script if ping fails', async () => {
-        // First ping fails (no response or error)
-        chrome.tabs.sendMessage.mockImplementationOnce((tabId, msg, cb) => {
-            chrome.runtime.lastError = { message: 'Receiving end does not exist' };
-            cb(null);
-        });
-        // Subsequent pings (after injection) succeed
+        // Fail the first 10 pings (MAX_ATTEMPTS)
+        let callCount = 0;
         chrome.tabs.sendMessage.mockImplementation((tabId, msg, cb) => {
-            chrome.runtime.lastError = null;
-            cb({ status: 'alive' });
+            callCount++;
+            if (callCount <= 10) {
+                chrome.runtime.lastError = { message: 'Receiving end does not exist' };
+                cb(null);
+            } else {
+                chrome.runtime.lastError = null;
+                cb({ status: 'alive' });
+            }
         });
 
         const result = await ensureContentScriptReady(123);
