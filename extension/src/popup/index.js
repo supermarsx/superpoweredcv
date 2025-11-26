@@ -73,10 +73,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Listen for progress messages from content script
+    // Listen for progress messages from content script or background
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === 'progress') {
             updateStatus(statusDiv, request.message);
+        }
+        if (request.action === 'scrape_complete') {
+            handleScrapeComplete(request.data, statusDiv, previewDiv);
+        }
+        if (request.action === 'scrape_error') {
+            updateStatus(statusDiv, 'Error: ' + request.error);
         }
     });
 
@@ -87,6 +93,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+async function handleScrapeComplete(data, statusDiv, previewDiv) {
+    const settings = await loadSettings();
+    Logger.info('Scrape successful', data);
+    
+    // Render preview using our "templating engine"
+    if (previewDiv) {
+        previewDiv.innerHTML = renderProfileTemplate(data);
+    }
+
+    const filename = generateFilename(data.name);
+    
+    // Save to history
+    await saveToHistory(data, filename);
+
+    // Auto download if enabled
+    if (settings.autoDownload) {
+        downloadJSON(data, filename);
+    }
+    
+    updateStatus(statusDiv, 'Done!');
+}
+
 /**
  * Handles the click event on the Grab button.
  * @param {HTMLElement} statusDiv - The status display element.
@@ -94,7 +122,6 @@ document.addEventListener('DOMContentLoaded', async () => {
  */
 async function handleGrabClick(statusDiv, previewDiv) {
     try {
-        const settings = await loadSettings();
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         
         if (!tab || !tab.url.includes('linkedin.com/in/')) {
@@ -102,45 +129,19 @@ async function handleGrabClick(statusDiv, previewDiv) {
             return;
         }
 
-        updateStatus(statusDiv, 'Scraping...');
+        updateStatus(statusDiv, 'Starting scrape...');
         if (previewDiv) previewDiv.innerHTML = ''; // Clear previous preview
-        Logger.info('Sending scrape command to tab', tab.id);
-
-        const response = await chrome.tabs.sendMessage(tab.id, { action: 'scrape' });
         
-        if (response && response.data) {
-            Logger.info('Scrape successful', response.data);
-            
-            // Render preview using our "templating engine"
-            if (previewDiv) {
-                previewDiv.innerHTML = renderProfileTemplate(response.data);
-            }
-
-            const filename = generateFilename(response.data.name);
-            
-            // Save to history
-            await saveToHistory(response.data, filename);
-
-            // Auto download if enabled
-            if (settings.autoDownload) {
-                downloadJSON(response.data, filename);
-            }
-            
-            updateStatus(statusDiv, 'Done!');
-        } else if (response && response.error) {
-            Logger.error('Scrape error from content script', response.error);
-            updateStatus(statusDiv, 'Failed: ' + response.error);
-        } else {
-            Logger.error('Scrape failed, no data');
-            updateStatus(statusDiv, 'Failed to scrape.');
+        // Send start command to Background Script
+        const response = await chrome.runtime.sendMessage({ action: 'start_scrape', tabId: tab.id });
+        
+        if (response && response.error) {
+            updateStatus(statusDiv, 'Error: ' + response.error);
         }
+
     } catch (error) {
         Logger.error('Popup error', error);
-        if (error.message.includes('Could not establish connection')) {
-            updateStatus(statusDiv, 'Error: Connection failed. Please reload the LinkedIn page and try again.');
-        } else {
-            updateStatus(statusDiv, 'Error: ' + error.message);
-        }
+        updateStatus(statusDiv, 'Error: ' + error.message);
     }
 }
 

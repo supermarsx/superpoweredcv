@@ -35,10 +35,12 @@ foreach ($browser in $browsers) {
     if (Test-Path -Path $manifestSpecific) {
         Copy-Item -Path $manifestSpecific -Destination (Join-Path $buildDir "manifest.json")
         Write-Host "  Using specific manifest: $browser.json" -ForegroundColor Gray
-    } elseif (Test-Path -Path $manifestDefault) {
+    }
+    elseif (Test-Path -Path $manifestDefault) {
         Copy-Item -Path $manifestDefault -Destination (Join-Path $buildDir "manifest.json")
         Write-Host "  Using default manifest.json" -ForegroundColor Gray
-    } else {
+    }
+    else {
         Write-Warning "  No manifest found for $browser"
     }
 

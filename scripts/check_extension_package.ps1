@@ -20,7 +20,8 @@ foreach ($file in $requiredFiles) {
     if (-not (Test-Path $filePath)) {
         $missingFiles += $file
         Write-Host "[-] Missing: $file" -ForegroundColor Red
-    } else {
+    }
+    else {
         Write-Host "[+] Found: $file" -ForegroundColor Green
     }
 }
@@ -38,18 +39,21 @@ try {
     # Check version
     if ($manifestContent.version) {
         Write-Host "    Version: $($manifestContent.version)" -ForegroundColor Gray
-    } else {
+    }
+    else {
         Write-Host "[-] Warning: No version field in manifest.json" -ForegroundColor Yellow
     }
 
     # Check manifest_version
     if ($manifestContent.manifest_version -eq 3) {
         Write-Host "    Manifest Version: 3 (Correct)" -ForegroundColor Gray
-    } else {
+    }
+    else {
         Write-Host "[-] Warning: manifest_version is not 3 (Found: $($manifestContent.manifest_version))" -ForegroundColor Yellow
     }
 
-} catch {
+}
+catch {
     Write-Host "[-] Error: manifest.json is invalid JSON" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1
@@ -94,19 +98,23 @@ if (Test-Path $distDir) {
                 
                 if ($missingInZip.Count -eq 0) {
                     Write-Host "    [+] Contents verified (manifest, content script, popup)" -ForegroundColor Gray
-                } else {
+                }
+                else {
                     Write-Host "    [-] Missing files in zip: $($missingInZip -join ', ')" -ForegroundColor Red
                 }
                 
                 $zip.Dispose()
-            } catch {
+            }
+            catch {
                 Write-Host "    [-] Error reading zip file: $_" -ForegroundColor Red
             }
-        } else {
+        }
+        else {
             Write-Host "[-] Missing package: $zipName" -ForegroundColor Yellow
         }
     }
-} else {
+}
+else {
     Write-Host "`n[-] Dist directory not found. Run package_extension.ps1 first." -ForegroundColor Yellow
 }
 

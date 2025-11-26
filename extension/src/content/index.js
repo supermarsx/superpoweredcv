@@ -14,85 +14,112 @@ const Logger = {
 };
 
 if (!isNode) {
-    /**
-     * Listen for messages from the popup.
-     */
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.action === 'scrape') {
-            Logger.info('Received scrape request');
-            scrapeProfile()
-                .then(data => sendResponse({ data: data }))
-                .catch(error => {
-                    Logger.error('Scraping failed', error);
-                    sendResponse({ error: error.message });
-                });
-        }
-        return true; // Keep channel open for async response
-    });
+    // Prevent multiple injections
+    if (window.hasSuperpoweredCVContentScript) {
+        Logger.info('Content script already loaded');
+    } else {
+        window.hasSuperpoweredCVContentScript = true;
+        
+        /**
+         * Listen for messages from the popup or background.
+         */
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.action === 'scrape_main') {
+                Logger.info('Received scrape_main request');
+                scrapeMainProfile()
+                    .then(data => sendResponse({ profile: data.profile, sectionsToScrape: data.sectionsToScrape }))
+                    .catch(error => sendResponse({ error: error.message }));
+            }
+            else if (request.action === 'scrape_section') {
+                Logger.info('Received scrape_section request', request.section);
+                scrapeSpecificSection(request.section)
+                    .then(data => sendResponse({ data: data }))
+                    .catch(error => sendResponse({ error: error.message }));
+            }
+            else if (request.action === 'ping') {
+                sendResponse({ status: 'alive' });
+            }
+            return true; // Keep channel open for async response
+        });
+        Logger.info('SuperpoweredCV Content Script Initialized');
+    }
 }
 
 /**
- * Scrapes the LinkedIn profile data from the current page.
- * @returns {Promise<Object>} The scraped profile object.
+ * Scrapes the main profile page and identifies sections needing navigation.
  */
-async function scrapeProfile() {
-    Logger.debug('Starting profile scrape');
+async function scrapeMainProfile() {
     const url = window.location.href;
-
-    // Check if we are on a details page
-    if (url.includes('/details/skills/')) {
-        return { skills: await getSkillsFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/languages/')) {
-        return { languages: getLanguagesFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/projects/')) {
-        return { projects: getProjectsFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/courses/')) {
-        return { courses: getCoursesFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/experience/')) {
-        return { experience: getExperienceFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/education/')) {
-        return { education: getEducationFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/volunteering/')) {
-        return { volunteering: getVolunteeringFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/publications/')) {
-        return { publications: getPublicationsFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/patents/')) {
-        return { patents: getPatentsFromDoc(document), url, isPartial: true };
-    }
-    if (url.includes('/details/organizations/')) {
-        return { organizations: getOrganizationsFromDoc(document), url, isPartial: true };
-    }
-
-    // Main Profile Scrape
+    const sectionsToScrape = [];
     const profile = {
         name: getText('h1'),
         headline: getText('.text-body-medium.break-words'),
         location: getText('.text-body-small.inline.t-black--light.break-words'),
         about: getAbout(),
-        experience: await scrapeSection('Experience', getExperience),
-        education: await scrapeSection('Education', getEducation),
-        languages: await scrapeSection('Languages', getLanguages),
-        volunteering: await scrapeSection('Volunteering', getVolunteering),
-        skills: await scrapeSection('Skills', getSkills),
-        projects: await scrapeSection('Projects', getProjects),
-        courses: await scrapeSection('Courses', getCourses),
-        publications: await scrapeSection('Publications', getPublications),
-        patents: await scrapeSection('Patents', getPatents),
-        organizations: await scrapeSection('Organizations', getOrganizations),
-        contactInfo: await scrapeSection('Contact Info', getContactInfo),
         url: url
     };
-    Logger.debug('Profile scraped:', profile);
-    return profile;
+
+    // Define sections and their scrapers
+    const sections = [
+        { key: 'experience', id: 'experience', scraper: getExperienceFromDoc },
+        { key: 'education', id: 'education', scraper: getEducationFromDoc },
+        { key: 'languages', id: 'languages', scraper: getLanguagesFromDoc },
+        { key: 'volunteering', id: 'volunteering', scraper: getVolunteeringFromDoc },
+        { key: 'skills', id: 'skills', scraper: getSkillsFromDoc },
+        { key: 'projects', id: 'projects', scraper: getProjectsFromDoc },
+        { key: 'courses', id: 'courses', scraper: getCoursesFromDoc },
+        { key: 'publications', id: 'publications', scraper: getPublicationsFromDoc },
+        { key: 'patents', id: 'patents', scraper: getPatentsFromDoc },
+        { key: 'organizations', id: 'organizations', scraper: getOrganizationsFromDoc }
+    ];
+
+    for (const sec of sections) {
+        const url = getSectionUrl(sec.id);
+        if (url) {
+            sectionsToScrape.push({ key: sec.key, url });
+            profile[sec.key] = []; // Placeholder
+        } else {
+            profile[sec.key] = sec.scraper(document);
+        }
+    }
+
+    // Contact info is special (overlay)
+    profile.contactInfo = await getContactInfo();
+
+    return { profile, sectionsToScrape };
 }
+
+/**
+ * Scrapes a specific section from the current page (assumed to be a details page).
+ */
+async function scrapeSpecificSection(sectionKey) {
+    switch (sectionKey) {
+        case 'experience': return getExperienceFromDoc(document);
+        case 'education': return getEducationFromDoc(document);
+        case 'languages': return getLanguagesFromDoc(document);
+        case 'volunteering': return getVolunteeringFromDoc(document);
+        case 'skills': return getSkillsFromDoc(document);
+        case 'projects': return getProjectsFromDoc(document);
+        case 'courses': return getCoursesFromDoc(document);
+        case 'publications': return getPublicationsFromDoc(document);
+        case 'patents': return getPatentsFromDoc(document);
+        case 'organizations': return getOrganizationsFromDoc(document);
+        default: return [];
+    }
+}
+
+/**
+ * Helper to get the "Show all" URL for a section.
+ */
+function getSectionUrl(sectionId) {
+    const footerLink = document.querySelector(`#${sectionId}`)?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
+    return footerLink ? footerLink.href : null;
+}
+
+// Legacy function kept for compatibility if needed, but unused by new flow
+async function scrapeProfile() {
+    // ...existing code...
+
 
 /**
  * Helper to report progress and execute a scraper function.
@@ -124,6 +151,27 @@ function getText(selector) {
 }
 
 /**
+ * Helper to extract description text, handling "show more" expansion.
+ * @param {Element} element - The element containing the description.
+ * @returns {string} The description text.
+ */
+function getDescription(element) {
+    // Try to find the container with any class starting with inline-show-more-text
+    const descriptionEl = element.querySelector('[class*="inline-show-more-text"]');
+    if (descriptionEl) {
+        const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
+        if (visibleSpan) return visibleSpan.innerText.trim();
+        
+        // Fallback: clone and remove visually-hidden
+        const clone = descriptionEl.cloneNode(true);
+        const hidden = clone.querySelectorAll('.visually-hidden');
+        hidden.forEach(el => el.remove());
+        return clone.innerText.trim();
+    }
+    return '';
+}
+
+/**
  * Helper to fetch a URL and return the document.
  * @param {string} url 
  * @returns {Promise<Document>}
@@ -150,19 +198,7 @@ function getAbout() {
     if (section) {
         const parent = section.closest('.artdeco-card');
         if (parent) {
-            // Try to find the visible text span specifically
-            const visibleSpan = parent.querySelector('.inline-show-more-text span[aria-hidden="true"]');
-            if (visibleSpan) return visibleSpan.innerText.trim();
-
-            // Fallback to container but try to exclude visually-hidden
-            const textContainer = parent.querySelector('.inline-show-more-text--is-collapsed, .inline-show-more-text--is-expanded');
-            if (textContainer) {
-                // Clone to avoid modifying DOM
-                const clone = textContainer.cloneNode(true);
-                const hidden = clone.querySelectorAll('.visually-hidden');
-                hidden.forEach(el => el.remove());
-                return clone.innerText.trim();
-            }
+            return getDescription(parent);
         }
     }
     return '';
@@ -210,7 +246,6 @@ function getExperienceFromDoc(doc) {
         let dateRange = '';
         let tenure = '';
         let location = '';
-        let description = '';
 
         // Try to identify date/tenure by pattern
         // Date usually contains year (19xx or 20xx) or month names
@@ -237,11 +272,7 @@ function getExperienceFromDoc(doc) {
         }
 
         // Description
-        const descriptionEl = item.querySelector('.inline-show-more-text');
-        if (descriptionEl) {
-            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
-        }
+        const description = getDescription(item);
 
         // Skills
         let skills = [];
@@ -319,14 +350,10 @@ function getVolunteeringFromDoc(doc) {
  * @returns {Promise<Array<Object>>} List of languages.
  */
 async function getLanguages() {
-    if (typeof document === 'undefined') return [];
+        // Description
+        const description = getDescription(item);
 
-    const footerLink = document.querySelector('#languages')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getLanguagesFromDoc(doc);
-    }
-    return getLanguagesFromDoc(document);
+        return { role, organization, date_range: dateRange, tenure, description };
 }
 
 /**
@@ -453,7 +480,6 @@ function getProjectsFromDoc(doc) {
         
         let title = texts[0] || '';
         let date = '';
-        let description = '';
         let link = '';
 
         // Try to find date
@@ -461,11 +487,7 @@ function getProjectsFromDoc(doc) {
         if (dateIndex > 0) date = texts[dateIndex];
 
         // Description
-        const descriptionEl = item.querySelector('.inline-show-more-text');
-        if (descriptionEl) {
-            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
-        }
+        const description = getDescription(item);
 
         // Link
         const linkEl = item.querySelector('a.optional-action-target-wrapper');
@@ -526,7 +548,6 @@ function getPublicationsFromDoc(doc) {
 
         let title = texts[0] || '';
         let date = '';
-        let description = '';
         let link = '';
 
         // Date logic
@@ -534,11 +555,7 @@ function getPublicationsFromDoc(doc) {
         if (dateIndex > 0) date = texts[dateIndex];
 
         // Description
-        const descriptionEl = item.querySelector('.inline-show-more-text');
-        if (descriptionEl) {
-            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
-        }
+        const description = getDescription(item);
 
         // Link
         const linkEl = item.querySelector('a.optional-action-target-wrapper');
@@ -571,14 +588,9 @@ function getPatentsFromDoc(doc) {
 
         let title = texts[0] || '';
         let number = texts[1] || '';
-        let description = '';
-
+        
         // Description
-        const descriptionEl = item.querySelector('.inline-show-more-text');
-        if (descriptionEl) {
-            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
-        }
+        const description = getDescription(item);
         
         return { title, number, description };
     }).filter(i => i.title);
@@ -608,18 +620,13 @@ function getOrganizationsFromDoc(doc) {
         let name = texts[0] || '';
         let role = texts[1] || '';
         let date = '';
-        let description = '';
 
         // Date logic
         const dateIndex = texts.findIndex(t => /\d{4}/.test(t));
         if (dateIndex > 1) date = texts[dateIndex];
 
         // Description
-        const descriptionEl = item.querySelector('.inline-show-more-text');
-        if (descriptionEl) {
-            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
-        }
+        const description = getDescription(item);
 
         return { name, role, date, description };
     }).filter(i => i.name);
