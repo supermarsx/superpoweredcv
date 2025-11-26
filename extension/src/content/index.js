@@ -77,21 +77,39 @@ async function scrapeProfile() {
         headline: getText('.text-body-medium.break-words'),
         location: getText('.text-body-small.inline.t-black--light.break-words'),
         about: getAbout(),
-        experience: await getExperience(),
-        education: await getEducation(),
-        languages: await getLanguages(),
-        volunteering: await getVolunteering(), // Replaces 'causes'
-        skills: await getSkills(),
-        projects: await getProjects(),
-        courses: await getCourses(),
-        publications: await getPublications(),
-        patents: await getPatents(),
-        organizations: await getOrganizations(),
-        contactInfo: await getContactInfo(),
+        experience: await scrapeSection('Experience', getExperience),
+        education: await scrapeSection('Education', getEducation),
+        languages: await scrapeSection('Languages', getLanguages),
+        volunteering: await scrapeSection('Volunteering', getVolunteering),
+        skills: await scrapeSection('Skills', getSkills),
+        projects: await scrapeSection('Projects', getProjects),
+        courses: await scrapeSection('Courses', getCourses),
+        publications: await scrapeSection('Publications', getPublications),
+        patents: await scrapeSection('Patents', getPatents),
+        organizations: await scrapeSection('Organizations', getOrganizations),
+        contactInfo: await scrapeSection('Contact Info', getContactInfo),
         url: url
     };
     Logger.debug('Profile scraped:', profile);
     return profile;
+}
+
+/**
+ * Helper to report progress and execute a scraper function.
+ * @param {string} name - Name of the section being scraped.
+ * @param {Function} scraperFn - The scraper function to call.
+ * @returns {Promise<any>} The result of the scraper function.
+ */
+async function scrapeSection(name, scraperFn) {
+    if (!isNode) {
+        chrome.runtime.sendMessage({ action: 'progress', message: `Scraping ${name}...` });
+    }
+    try {
+        return await scraperFn();
+    } catch (e) {
+        Logger.error(`Error scraping ${name}`, e);
+        return []; // Return empty array/object on failure to prevent total crash
+    }
 }
 
 /**
@@ -132,11 +150,19 @@ function getAbout() {
     if (section) {
         const parent = section.closest('.artdeco-card');
         if (parent) {
+            // Try to find the visible text span specifically
+            const visibleSpan = parent.querySelector('.inline-show-more-text span[aria-hidden="true"]');
+            if (visibleSpan) return visibleSpan.innerText.trim();
+
+            // Fallback to container but try to exclude visually-hidden
             const textContainer = parent.querySelector('.inline-show-more-text--is-collapsed, .inline-show-more-text--is-expanded');
-            if (textContainer) return textContainer.innerText.trim();
-            
-            const text = parent.querySelector('.inline-show-more-text span[aria-hidden="true"]');
-            if (text) return text.innerText.trim();
+            if (textContainer) {
+                // Clone to avoid modifying DOM
+                const clone = textContainer.cloneNode(true);
+                const hidden = clone.querySelectorAll('.visually-hidden');
+                hidden.forEach(el => el.remove());
+                return clone.innerText.trim();
+            }
         }
     }
     return '';
@@ -165,92 +191,91 @@ async function getExperience() {
  * @returns {Array<Object>} List of experience items.
  */
 function getExperienceFromDoc(doc) {
+    const items = getSectionItems(doc, 'experience');
     const experiences = [];
-    // If on details page, the structure is slightly different (pvs-list)
-    // But usually the list items share similar structure or we can target .pvs-list__paged-list-item
-    
-    // Try generic PVS list approach first (works for both main and details usually)
-    const items = doc.querySelectorAll('.pvs-list__paged-list-item, li.artdeco-list__item');
-    
-    // Filter to ensure we are looking at experience items if on main page
-    // On main page, we need to scope to #experience section
-    let targetItems = items;
-    if (doc === document) { // Main page
-        const section = doc.getElementById('experience');
-        if (!section) return [];
-        const parent = section.closest('.artdeco-card');
-        if (!parent) return [];
-        targetItems = parent.querySelectorAll('li.artdeco-list__item');
-    }
 
-    targetItems.forEach(item => {
-        // Selectors for Title, Company, etc.
-        // These selectors are fragile and change often. 
-        // We look for the first strong text as title, second as company, etc.
+    items.forEach(item => {
+        // Generic extraction strategy:
+        // 1. Get all visible spans (aria-hidden="true")
+        // 2. Filter out empty/separator spans
+        // 3. Map by position (Title, Company, Date, Location)
         
-        const spans = item.querySelectorAll('span[aria-hidden="true"]');
-        if (spans.length < 1) return;
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
 
-        // Heuristic: 
-        // 1. Title is usually the first bold/strong element or the first span in the first link.
-        // 2. Company is usually the second line.
-        // 3. Date/Tenure is usually the third line (t-black--light).
-        
-        // Let's try to find specific classes if possible, but fall back to order.
-        const titleEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]') || spans[0];
-        const companyEl = item.querySelector('span.t-14.t-normal span[aria-hidden="true"]'); // This might be missing if multiple roles at same company
-        
-        // If multiple roles at same company, the structure is nested.
-        // For now, let's stick to the flat structure or the main role.
-        
-        // Refined extraction logic
-        let title = titleEl ? titleEl.innerText.trim() : '';
-        let company = companyEl ? companyEl.innerText.trim() : '';
-        
-        // Meta data (Date, Location)
-        const metaEls = item.querySelectorAll('span.t-14.t-normal.t-black--light span[aria-hidden="true"]');
+        if (texts.length < 2) return; // Need at least Title and Company
+
+        let title = texts[0];
+        let company = texts[1];
         let dateRange = '';
         let tenure = '';
         let location = '';
+        let description = '';
 
-        if (metaEls.length > 0) {
-            const dateAndTenure = metaEls[0].innerText.trim();
-            const parts = dateAndTenure.split('·').map(s => s.trim());
+        // Try to identify date/tenure by pattern
+        // Date usually contains year (19xx or 20xx) or month names
+        // Tenure usually contains "yr" or "mos"
+        
+        // Find index of date-like string
+        const dateIndex = texts.findIndex(t => /\d{4}|Present/i.test(t) && (t.includes(' - ') || t.includes('·')));
+        
+        if (dateIndex > 1) {
+            // If we found a date later, everything before it might be title/company parts
+            // But usually Title is 0, Company is 1.
+            const dateText = texts[dateIndex];
+            const parts = dateText.split('·').map(s => s.trim());
             dateRange = parts[0] || '';
-            if (parts.length > 1) {
-                tenure = parts[1];
-                if (dateRange.toLowerCase().includes('present')) {
-                    tenure = 'over ' + tenure;
-                }
-            }
-        }
-        if (metaEls.length > 1) {
-            location = metaEls[1].innerText.trim();
+            if (parts.length > 1) tenure = parts[1];
+            
+            if (texts[dateIndex + 1]) location = texts[dateIndex + 1];
+        } else if (texts[2]) {
+             // Fallback: assume 3rd item is date
+             const parts = texts[2].split('·').map(s => s.trim());
+             dateRange = parts[0];
+             if (parts.length > 1) tenure = parts[1];
+             if (texts[3]) location = texts[3];
         }
 
         // Description
-        let description = '';
         const descriptionEl = item.querySelector('.inline-show-more-text');
         if (descriptionEl) {
-            const cleanSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
-            description = cleanSpan ? cleanSpan.innerText.trim() : descriptionEl.innerText.trim();
+            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
+            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
         }
 
         // Skills
         let skills = [];
-        const skillsContainer = Array.from(item.querySelectorAll('div.display-flex')).find(div => div.innerText.includes('Skills:'));
+        const skillsContainer = Array.from(item.querySelectorAll('div')).find(div => div.innerText.includes('Skills:'));
         if (skillsContainer) {
+            // Be careful not to grab the whole item text
+            // Usually skills are in a distinct div
             const fullText = skillsContainer.innerText.trim();
-            const skillsText = fullText.replace(/^Skills:\s*/i, '');
-            skills = skillsText.split('·').map(s => s.trim());
+            // Check if this div is actually small enough to be just skills
+            if (fullText.length < 500) {
+                 const skillsText = fullText.replace(/^Skills:\s*/i, '');
+                 skills = skillsText.split('·').map(s => s.trim());
+            }
         }
 
-        if (title) {
-            experiences.push({ title, company, date_range: dateRange, tenure, location, description, skills });
-        }
+        experiences.push({ title, company, date_range: dateRange, tenure, location, description, skills });
     });
 
     return experiences;
+}
+
+/**
+ * Scrapes the 'Volunteering' section.
+ * @returns {Promise<Array<Object>>} List of volunteering items.
+ */
+async function getVolunteering() {
+    if (typeof document === 'undefined') return [];
+    
+    const footerLink = document.querySelector('#volunteering')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
+    if (footerLink && footerLink.href) {
+        const doc = await fetchDocument(footerLink.href);
+        if (doc) return getVolunteeringFromDoc(doc);
+    }
+    return getVolunteeringFromDoc(document);
 }
 
 /**
@@ -261,27 +286,31 @@ function getExperienceFromDoc(doc) {
 function getVolunteeringFromDoc(doc) {
     const items = getSectionItems(doc, 'volunteering');
     return items.map(item => {
-        const roleEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]');
-        const orgEl = item.querySelector('span.t-14.t-normal span[aria-hidden="true"]');
-        const metaEls = item.querySelectorAll('span.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-        const descriptionEl = item.querySelector('.inline-show-more-text span[aria-hidden="true"]');
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
 
+        let role = texts[0] || '';
+        let organization = texts[1] || '';
         let dateRange = '';
         let tenure = '';
-        if (metaEls.length > 0) {
-            const dateAndTenure = metaEls[0].innerText.trim();
-            const parts = dateAndTenure.split('·').map(s => s.trim());
-            dateRange = parts[0] || '';
+        let description = '';
+
+        // Date logic
+        const dateIndex = texts.findIndex(t => /\d{4}|Present/i.test(t));
+        if (dateIndex > 1) {
+            const parts = texts[dateIndex].split('·').map(s => s.trim());
+            dateRange = parts[0];
             if (parts.length > 1) tenure = parts[1];
         }
 
-        return {
-            role: roleEl ? roleEl.innerText.trim() : '',
-            organization: orgEl ? orgEl.innerText.trim() : '',
-            date_range: dateRange,
-            tenure: tenure,
-            description: descriptionEl ? descriptionEl.innerText.trim() : ''
-        };
+        // Description
+        const descriptionEl = item.querySelector('.inline-show-more-text');
+        if (descriptionEl) {
+            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
+            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
+        }
+
+        return { role, organization, date_range: dateRange, tenure, description };
     }).filter(i => i.role);
 }
 
@@ -308,11 +337,12 @@ async function getLanguages() {
 function getLanguagesFromDoc(doc) {
     const items = getSectionItems(doc, 'languages');
     return items.map(item => {
-        const nameEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]');
-        const proficiencyEl = item.querySelector('span.t-14.t-normal.t-black--light span[aria-hidden="true"]');
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+        
         return {
-            name: nameEl ? nameEl.innerText.trim() : '',
-            proficiency: proficiencyEl ? proficiencyEl.innerText.trim() : ''
+            name: texts[0] || '',
+            proficiency: texts[1] || ''
         };
     }).filter(i => i.name);
 }
@@ -340,12 +370,29 @@ async function getEducation() {
 function getEducationFromDoc(doc) {
     const items = getSectionItems(doc, 'education');
     return items.map(item => {
-        const schoolEl = item.querySelector('.display-flex.align-items-center.mr1.hoverable-link-text span[aria-hidden="true"]');
-        const degreeEl = item.querySelector('span.t-14.t-normal span[aria-hidden="true"]');
-        return {
-            school: schoolEl ? schoolEl.innerText.trim() : '',
-            degree: degreeEl ? degreeEl.innerText.trim() : ''
-        };
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+
+        let school = texts[0] || '';
+        let degree = texts[1] || '';
+        let dateRange = '';
+        let grade = '';
+        let description = '';
+
+        // Try to find date
+        const dateIndex = texts.findIndex(t => /\d{4}/.test(t));
+        if (dateIndex > 1) {
+            dateRange = texts[dateIndex];
+        }
+
+        // Description
+        const descriptionEl = item.querySelector('.inline-show-more-text');
+        if (descriptionEl) {
+            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
+            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
+        }
+
+        return { school, degree, date_range: dateRange, description };
     }).filter(i => i.school);
 }
 
@@ -392,20 +439,39 @@ async function getProjects() {
     return getProjectsFromDoc(document);
 }
 
+/**
+ * Helper to extract projects from a document.
+ * @param {Document} doc - The document to scrape.
+ * @returns {Array<Object>} List of projects.
+ */
 function getProjectsFromDoc(doc) {
     const items = getSectionItems(doc, 'projects');
     return items.map(item => {
-        const titleEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]');
-        const dateEl = item.querySelector('span.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-        const descriptionEl = item.querySelector('.inline-show-more-text span[aria-hidden="true"]');
-        const linkEl = item.querySelector('a.optional-action-target-wrapper');
+        // Generic extraction
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+        
+        let title = texts[0] || '';
+        let date = '';
+        let description = '';
+        let link = '';
 
-        return {
-            title: titleEl ? titleEl.innerText.trim() : '',
-            date: dateEl ? dateEl.innerText.trim() : '',
-            description: descriptionEl ? descriptionEl.innerText.trim() : '',
-            link: linkEl ? linkEl.href : ''
-        };
+        // Try to find date
+        const dateIndex = texts.findIndex(t => /\d{4}|Present/i.test(t));
+        if (dateIndex > 0) date = texts[dateIndex];
+
+        // Description
+        const descriptionEl = item.querySelector('.inline-show-more-text');
+        if (descriptionEl) {
+            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
+            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
+        }
+
+        // Link
+        const linkEl = item.querySelector('a.optional-action-target-wrapper');
+        if (linkEl) link = linkEl.href;
+
+        return { title, date, description, link };
     }).filter(i => i.title);
 }
 
@@ -427,11 +493,12 @@ async function getCourses() {
 function getCoursesFromDoc(doc) {
     const items = getSectionItems(doc, 'courses');
     return items.map(item => {
-        const nameEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]');
-        const numberEl = item.querySelector('span.t-14.t-normal.t-black--light span[aria-hidden="true"]');
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+        
         return {
-            name: nameEl ? nameEl.innerText.trim() : '',
-            number: numberEl ? numberEl.innerText.trim() : ''
+            name: texts[0] || '',
+            number: texts[1] || ''
         };
     }).filter(i => i.name);
 }
@@ -454,17 +521,30 @@ async function getPublications() {
 function getPublicationsFromDoc(doc) {
     const items = getSectionItems(doc, 'publications');
     return items.map(item => {
-        const titleEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]');
-        const dateEl = item.querySelector('span.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-        const descriptionEl = item.querySelector('.inline-show-more-text span[aria-hidden="true"]');
-        const linkEl = item.querySelector('a.optional-action-target-wrapper');
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
 
-        return {
-            title: titleEl ? titleEl.innerText.trim() : '',
-            date: dateEl ? dateEl.innerText.trim() : '',
-            description: descriptionEl ? descriptionEl.innerText.trim() : '',
-            link: linkEl ? linkEl.href : ''
-        };
+        let title = texts[0] || '';
+        let date = '';
+        let description = '';
+        let link = '';
+
+        // Date logic
+        const dateIndex = texts.findIndex(t => /\d{4}/.test(t));
+        if (dateIndex > 0) date = texts[dateIndex];
+
+        // Description
+        const descriptionEl = item.querySelector('.inline-show-more-text');
+        if (descriptionEl) {
+            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
+            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
+        }
+
+        // Link
+        const linkEl = item.querySelector('a.optional-action-target-wrapper');
+        if (linkEl) link = linkEl.href;
+
+        return { title, date, description, link };
     }).filter(i => i.title);
 }
 
@@ -486,15 +566,21 @@ async function getPatents() {
 function getPatentsFromDoc(doc) {
     const items = getSectionItems(doc, 'patents');
     return items.map(item => {
-        const titleEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]');
-        const numberEl = item.querySelector('span.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-        const descriptionEl = item.querySelector('.inline-show-more-text span[aria-hidden="true"]');
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
+
+        let title = texts[0] || '';
+        let number = texts[1] || '';
+        let description = '';
+
+        // Description
+        const descriptionEl = item.querySelector('.inline-show-more-text');
+        if (descriptionEl) {
+            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
+            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
+        }
         
-        return {
-            title: titleEl ? titleEl.innerText.trim() : '',
-            number: numberEl ? numberEl.innerText.trim() : '',
-            description: descriptionEl ? descriptionEl.innerText.trim() : ''
-        };
+        return { title, number, description };
     }).filter(i => i.title);
 }
 
@@ -516,17 +602,26 @@ async function getOrganizations() {
 function getOrganizationsFromDoc(doc) {
     const items = getSectionItems(doc, 'organizations');
     return items.map(item => {
-        const nameEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]');
-        const roleEl = item.querySelector('span.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-        const dateEl = item.querySelectorAll('span.t-14.t-normal.t-black--light span[aria-hidden="true"]')[1];
-        const descriptionEl = item.querySelector('.inline-show-more-text span[aria-hidden="true"]');
+        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
+        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
 
-        return {
-            name: nameEl ? nameEl.innerText.trim() : '',
-            role: roleEl ? roleEl.innerText.trim() : '',
-            date: dateEl ? dateEl.innerText.trim() : '',
-            description: descriptionEl ? descriptionEl.innerText.trim() : ''
-        };
+        let name = texts[0] || '';
+        let role = texts[1] || '';
+        let date = '';
+        let description = '';
+
+        // Date logic
+        const dateIndex = texts.findIndex(t => /\d{4}/.test(t));
+        if (dateIndex > 1) date = texts[dateIndex];
+
+        // Description
+        const descriptionEl = item.querySelector('.inline-show-more-text');
+        if (descriptionEl) {
+            const visibleSpan = descriptionEl.querySelector('span[aria-hidden="true"]');
+            description = visibleSpan ? visibleSpan.innerText.trim() : descriptionEl.innerText.trim();
+        }
+
+        return { name, role, date, description };
     }).filter(i => i.name);
 }
 
@@ -538,8 +633,6 @@ async function getContactInfo() {
     if (typeof window === 'undefined') return {};
     
     // Construct overlay URL
-    // URL format: https://www.linkedin.com/in/{slug}/overlay/contact-info/
-    // We need to extract the slug from the current URL
     const match = window.location.href.match(/\/in\/([^\/]+)/);
     if (!match) return {};
     
@@ -551,33 +644,29 @@ async function getContactInfo() {
 
     const contactInfo = {};
     
-    // Email
-    const emailSection = Array.from(doc.querySelectorAll('section')).find(s => s.innerText.includes('Email'));
-    if (emailSection) {
-        const link = emailSection.querySelector('a');
-        if (link) contactInfo.email = link.innerText.trim();
-    }
-
-    // Phone
-    const phoneSection = Array.from(doc.querySelectorAll('section')).find(s => s.innerText.includes('Phone'));
-    if (phoneSection) {
-        const items = phoneSection.querySelectorAll('li');
-        contactInfo.phone = Array.from(items).map(i => i.innerText.trim());
-    }
-
-    // Website
-    const websiteSection = Array.from(doc.querySelectorAll('section')).find(s => s.innerText.includes('Website'));
-    if (websiteSection) {
-        const items = websiteSection.querySelectorAll('li a');
-        contactInfo.websites = Array.from(items).map(i => i.href);
-    }
-
-    // Twitter/X
-    const twitterSection = Array.from(doc.querySelectorAll('section')).find(s => s.innerText.includes('Twitter'));
-    if (twitterSection) {
-        const link = twitterSection.querySelector('a');
-        if (link) contactInfo.twitter = link.href;
-    }
+    // Generic section parser for contact info
+    // Look for sections by header text
+    const sections = Array.from(doc.querySelectorAll('section'));
+    
+    sections.forEach(section => {
+        const header = section.querySelector('h3');
+        if (!header) return;
+        const headerText = header.innerText.toLowerCase();
+        
+        if (headerText.includes('email')) {
+            const link = section.querySelector('a');
+            if (link) contactInfo.email = link.innerText.trim();
+        } else if (headerText.includes('phone')) {
+            const items = section.querySelectorAll('li, span.t-14');
+            contactInfo.phone = Array.from(items).map(i => i.innerText.trim()).filter(t => t);
+        } else if (headerText.includes('website')) {
+            const items = section.querySelectorAll('a');
+            contactInfo.websites = Array.from(items).map(i => i.href);
+        } else if (headerText.includes('twitter') || headerText.includes('x')) { // X (Twitter)
+            const link = section.querySelector('a');
+            if (link) contactInfo.twitter = link.href;
+        }
+    });
 
     return contactInfo;
 }
@@ -606,60 +695,6 @@ function getSectionItems(doc, sectionId) {
     }
     
     return Array.from(items);
-}
-            const footer = parent.querySelector('.pvs-list__footer-wrapper a');
-            if (footer && footer.href) {
-                try {
-                    Logger.debug('Fetching full skills from:', footer.href);
-                    const response = await fetch(footer.href);
-                    const text = await response.text();
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(text, 'text/html');
-                    return getSkillsFromDoc(doc);
-                } catch (e) {
-                    Logger.error('Failed to fetch full skills', e);
-                }
-            }
-
-            // Fallback to visible skills
-            const items = parent.querySelectorAll('.display-flex.align-items-center.mr1.hoverable-link-text span[aria-hidden="true"]');
-            items.forEach(item => {
-                skills.push(item.innerText.trim());
-            });
-        }
-    }
-    return skills;
-}
-
-/**
- * Helper to extract skills from a document (main or details page).
- * @param {Document} doc - The document to scrape.
- * @returns {Array<string>} List of skills.
- */
-function getSkillsFromDoc(doc) {
-    const skills = [];
-    // On details page, skills are usually in a list
-    // Selector for skills in the details list
-    const items = doc.querySelectorAll('.pvs-list__paged-list-item .display-flex.align-items-center.mr1.hoverable-link-text span[aria-hidden="true"]');
-    
-    // If that selector fails, try a more generic one often found in details pages
-    if (items.length === 0) {
-         const genericItems = doc.querySelectorAll('.pvs-list__paged-list-item span.visually-hidden'); // Sometimes hidden
-         // Or the visible text
-         const visibleItems = doc.querySelectorAll('.pvs-list__paged-list-item div.display-flex.align-items-center > span[aria-hidden="true"]');
-         
-         visibleItems.forEach(item => {
-             const text = item.innerText.trim();
-             if (text && !skills.includes(text)) skills.push(text);
-         });
-    } else {
-        items.forEach(item => {
-            const text = item.innerText.trim();
-            if (text && !skills.includes(text)) skills.push(text);
-        });
-    }
-    
-    return skills;
 }
 
 // Export for testing

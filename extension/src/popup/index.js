@@ -8,6 +8,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusDiv = document.getElementById('status');
     const previewDiv = document.getElementById('preview');
 
+    // Listen for progress messages from content script
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'progress') {
+            updateStatus(statusDiv, request.message);
+        }
+    });
+
     if (grabBtn) {
         grabBtn.addEventListener('click', async () => {
             await handleGrabClick(statusDiv, previewDiv);
