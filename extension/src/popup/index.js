@@ -43,7 +43,8 @@ async function handleGrabClick(statusDiv, previewDiv) {
                 previewDiv.innerHTML = renderProfileTemplate(response.data);
             }
 
-            downloadJSON(response.data, `profile_${response.data.name || 'unknown'}.json`);
+            const filename = generateFilename(response.data.name);
+            downloadJSON(response.data, filename);
             updateStatus(statusDiv, 'Done!');
         } else if (response && response.error) {
             Logger.error('Scrape error from content script', response.error);
@@ -54,8 +55,25 @@ async function handleGrabClick(statusDiv, previewDiv) {
         }
     } catch (error) {
         Logger.error('Popup error', error);
-        updateStatus(statusDiv, 'Error: ' + error.message);
+        if (error.message.includes('Could not establish connection')) {
+            updateStatus(statusDiv, 'Error: Connection failed. Please reload the LinkedIn page and try again.');
+        } else {
+            updateStatus(statusDiv, 'Error: ' + error.message);
+        }
     }
+}
+
+/**
+ * Generates the filename in the format: superpoweredcv-name-date-time.json
+ * @param {string} name - The profile name.
+ * @returns {string} The formatted filename.
+ */
+function generateFilename(name) {
+    const cleanName = (name || 'unknown').toLowerCase().replace(/\s+/g, '');
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+    return `superpoweredcv-${cleanName}-${dateStr}-${timeStr}.json`;
 }
 
 /**

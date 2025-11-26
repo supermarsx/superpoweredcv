@@ -73,7 +73,8 @@
             setTimeout(async () => {
                 try {
                     const data = await scrapeProfile();
-                    downloadJSON(data, `profile_${data.name || 'unknown'}.json`);
+                    const filename = generateFilename(data.name);
+                    downloadJSON(data, filename);
                     btn.innerText = "DONE!";
                     setTimeout(() => btn.innerText = "INITIATE_DUMP", 3000);
                 } catch (e) {
@@ -87,6 +88,19 @@
             btn.innerText = "ERROR";
             alert("Scraping failed: " + e.message);
         }
+    }
+
+    /**
+     * Generates the filename in the format: superpoweredcv-name-date-time.json
+     * @param {string} name - The profile name.
+     * @returns {string} The formatted filename.
+     */
+    function generateFilename(name) {
+        const cleanName = (name || 'unknown').toLowerCase().replace(/\s+/g, '');
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+        return `superpoweredcv-${cleanName}-${dateStr}-${timeStr}.json`;
     }
 
     /**
