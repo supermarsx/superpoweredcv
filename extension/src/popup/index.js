@@ -1,3 +1,4 @@
+/* global Logger */
 /**
  * @file popup/index.js
  * @description Popup script for the extension. Handles user interaction.
@@ -74,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Listen for progress messages from content script or background
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((request) => {
         if (request.action === 'progress') {
             updateStatus(statusDiv, request.message);
         }

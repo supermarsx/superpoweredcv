@@ -117,26 +117,13 @@ function getSectionUrl(sectionId) {
 
 // Legacy function kept for compatibility if needed, but unused by new flow
 async function scrapeProfile() {
-    // ...existing code...
-
-
-/**
- * Helper to report progress and execute a scraper function.
- * @param {string} name - Name of the section being scraped.
- * @param {Function} scraperFn - The scraper function to call.
- * @returns {Promise<any>} The result of the scraper function.
- */
-async function scrapeSection(name, scraperFn) {
-    if (!isNode) {
-        chrome.runtime.sendMessage({ action: 'progress', message: `Scraping ${name}...` });
-    }
-    try {
-        return await scraperFn();
-    } catch (e) {
-        Logger.error(`Error scraping ${name}`, e);
-        return []; // Return empty array/object on failure to prevent total crash
-    }
+    return null;
 }
+
+
+// ...existing code...
+async function scrapeSection(name, scraperFn) {
+// ...existing code...
 
 /**
  * Helper to get text content from a selector.
@@ -201,23 +188,6 @@ function getAbout() {
         }
     }
     return '';
-}
-
-/**
- * Scrapes the 'Experience' section.
- * @returns {Promise<Array<Object>>} List of experience items.
- */
-async function getExperience() {
-    if (typeof document === 'undefined') return [];
-    
-    // Check for "Show all experiences" link
-    const footerLink = document.querySelector('#experience')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getExperienceFromDoc(doc);
-    }
-
-    return getExperienceFromDoc(document);
 }
 
 /**
@@ -294,21 +264,6 @@ function getExperienceFromDoc(doc) {
 }
 
 /**
- * Scrapes the 'Volunteering' section.
- * @returns {Promise<Array<Object>>} List of volunteering items.
- */
-async function getVolunteering() {
-    if (typeof document === 'undefined') return [];
-    
-    const footerLink = document.querySelector('#volunteering')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getVolunteeringFromDoc(doc);
-    }
-    return getVolunteeringFromDoc(document);
-}
-
-/**
  * Helper to extract volunteering items from a document.
  * @param {Document} doc - The document to scrape.
  * @returns {Array<Object>} List of volunteering items.
@@ -344,16 +299,7 @@ function getVolunteeringFromDoc(doc) {
     }).filter(i => i.role);
 }
 
-/**
- * Scrapes the 'Languages' section.
- * @returns {Promise<Array<Object>>} List of languages.
- */
-async function getLanguages() {
-        // Description
-        const description = getDescription(item);
 
-        return { role, organization, date_range: dateRange, tenure, description };
-}
 
 /**
  * Helper to extract languages from a document.
@@ -371,21 +317,6 @@ function getLanguagesFromDoc(doc) {
             proficiency: texts[1] || ''
         };
     }).filter(i => i.name);
-}
-
-/**
- * Scrapes the 'Education' section.
- * @returns {Promise<Array<Object>>} List of education items.
- */
-async function getEducation() {
-    if (typeof document === 'undefined') return [];
-    
-    const footerLink = document.querySelector('#education')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getEducationFromDoc(doc);
-    }
-    return getEducationFromDoc(document);
 }
 
 /**
@@ -434,7 +365,7 @@ async function getSkills() {
         const doc = await fetchDocument(footerLink.href);
         if (doc) return getSkillsFromDoc(doc);
     }
-    return getSkillsFromDoc(document);
+    }).filter(i => i.school);
 }
 
 /**
@@ -442,35 +373,7 @@ async function getSkills() {
  * @param {Document} doc - The document to scrape.
  * @returns {Array<string>} List of skills.
  */
-function getSkillsFromDoc(doc) {
-    const items = getSectionItems(doc, 'skills');
-    return items.map(item => {
-        const skillEl = item.querySelector('.display-flex.align-items-center.mr1.hoverable-link-text span[aria-hidden="true"]') || item.querySelector('span[aria-hidden="true"]');
-        return skillEl ? skillEl.innerText.trim() : '';
-    }).filter(s => s);
-}
-
-/**
- * Scrapes the 'Projects' section.
- * @returns {Promise<Array<Object>>} List of projects.
- */
-async function getProjects() {
-    if (typeof document === 'undefined') return [];
-    
-    const footerLink = document.querySelector('#projects')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getProjectsFromDoc(doc);
-    }
-    return getProjectsFromDoc(document);
-}
-
-/**
- * Helper to extract projects from a document.
- * @param {Document} doc - The document to scrape.
- * @returns {Array<Object>} List of projects.
- */
-function getProjectsFromDoc(doc) {
+function getSkillsFromDoc(doc) { {
     const items = getSectionItems(doc, 'projects');
     return items.map(item => {
         // Generic extraction
@@ -490,55 +393,15 @@ function getProjectsFromDoc(doc) {
 
         // Link
         const linkEl = item.querySelector('a.optional-action-target-wrapper');
-        if (linkEl) link = linkEl.href;
-
-        return { title, date, description, link };
-    }).filter(i => i.title);
+    }).filter(s => s);
 }
 
 /**
- * Scrapes the 'Courses' section.
- * @returns {Promise<Array<Object>>} List of courses.
+ * Helper to extract projects from a document.
+ * @param {Document} doc - The document to scrape.
+ * @returns {Array<Object>} List of projects.
  */
-async function getCourses() {
-    if (typeof document === 'undefined') return [];
-    
-    const footerLink = document.querySelector('#courses')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getCoursesFromDoc(doc);
-    }
-    return getCoursesFromDoc(document);
-}
-
-function getCoursesFromDoc(doc) {
-    const items = getSectionItems(doc, 'courses');
-    return items.map(item => {
-        const spans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'));
-        const texts = spans.map(s => s.innerText.trim()).filter(t => t && t !== '·');
-        
-        return {
-            name: texts[0] || '',
-            number: texts[1] || ''
-        };
-    }).filter(i => i.name);
-}
-
-/**
- * Scrapes the 'Publications' section.
- * @returns {Promise<Array<Object>>} List of publications.
- */
-async function getPublications() {
-    if (typeof document === 'undefined') return [];
-    
-    const footerLink = document.querySelector('#publications')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getPublicationsFromDoc(doc);
-    }
-    return getPublicationsFromDoc(document);
-}
-
+function getProjectsFromDoc(doc) {
 function getPublicationsFromDoc(doc) {
     const items = getSectionItems(doc, 'publications');
     return items.map(item => {
@@ -563,20 +426,13 @@ function getPublicationsFromDoc(doc) {
         return { title, date, description, link };
     }).filter(i => i.title);
 }
+    }).filter(i => i.title);
+}
 
-/**
- * Scrapes the 'Patents' section.
- * @returns {Promise<Array<Object>>} List of patents.
- */
-async function getPatents() {
-    if (typeof document === 'undefined') return [];
-    
-    const footerLink = document.querySelector('#patents')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getPatentsFromDoc(doc);
-    }
-    return getPatentsFromDoc(document);
+function getPublicationsFromDoc(doc) {
+            number: texts[1] || ''
+        };
+    }).filter(i => i.name);
 }
 
 function getPatentsFromDoc(doc) {
@@ -588,26 +444,10 @@ function getPatentsFromDoc(doc) {
         let title = texts[0] || '';
         let number = texts[1] || '';
         
-        // Description
         const description = getDescription(item);
         
         return { title, number, description };
     }).filter(i => i.title);
-}
-
-/**
- * Scrapes the 'Organizations' section.
- * @returns {Promise<Array<Object>>} List of organizations.
- */
-async function getOrganizations() {
-    if (typeof document === 'undefined') return [];
-    
-    const footerLink = document.querySelector('#organizations')?.closest('.artdeco-card')?.querySelector('div.pvs-list__footer-wrapper a');
-    if (footerLink && footerLink.href) {
-        const doc = await fetchDocument(footerLink.href);
-        if (doc) return getOrganizationsFromDoc(doc);
-    }
-    return getOrganizationsFromDoc(document);
 }
 
 function getOrganizationsFromDoc(doc) {
@@ -620,11 +460,9 @@ function getOrganizationsFromDoc(doc) {
         let role = texts[1] || '';
         let date = '';
 
-        // Date logic
         const dateIndex = texts.findIndex(t => /\d{4}/.test(t));
         if (dateIndex > 1) date = texts[dateIndex];
 
-        // Description
         const description = getDescription(item);
 
         return { name, role, date, description };
@@ -639,7 +477,7 @@ async function getContactInfo() {
     if (typeof window === 'undefined') return {};
     
     // Construct overlay URL
-    const match = window.location.href.match(/\/in\/([^\/]+)/);
+    const match = window.location.href.match(new RegExp('/in/([^/]+)'));
     if (!match) return {};
     
     const slug = match[1];
@@ -712,5 +550,16 @@ if (isNode) {
         getExperience,
         getEducation,
         getSkills
+    };
+}
+// Export for testing
+if (isNode) {
+    module.exports = {
+        scrapeMainProfile,
+        getText,
+        getAbout,
+        getExperienceFromDoc,
+        getEducationFromDoc,
+        getSkillsFromDoc
     };
 }
