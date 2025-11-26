@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const contents = document.querySelectorAll('.tab-content');
     const historyList = document.getElementById('historyList');
     const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    const clearDataBtn = document.getElementById('clearDataBtn');
     const autoDownloadCheckbox = document.getElementById('autoDownload');
     const debugModeCheckbox = document.getElementById('debugMode');
 
@@ -49,12 +50,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             saveSettings({ debugMode: debugModeCheckbox.checked });
         });
     }
+    if (clearDataBtn) {
+        clearDataBtn.addEventListener('click', async () => {
+            if (confirm('Are you sure you want to delete ALL extension data? This cannot be undone.')) {
+                await chrome.storage.local.clear();
+                await chrome.storage.sync.clear();
+                // Reset UI
+                if (autoDownloadCheckbox) autoDownloadCheckbox.checked = true;
+                if (debugModeCheckbox) debugModeCheckbox.checked = false;
+                alert('All data cleared.');
+            }
+        });
+    }
 
     // History Listeners
     if (clearHistoryBtn) {
         clearHistoryBtn.addEventListener('click', async () => {
-            await chrome.storage.local.set({ history: [] });
-            renderHistory();
+            if (confirm('Clear all history?')) {
+                await chrome.storage.local.set({ history: [] });
+                renderHistory();
+            }
         });
     }
 
@@ -170,22 +185,45 @@ async function renderHistory() {
         return;
     }
 
-    history.forEach(item => {
+    history.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'history-item';
         div.innerHTML = `
-            <div>
+            <div class="history-info">
                 <strong>${escapeHtml(item.name)}</strong><br>
                 <span class="history-date">${new Date(item.date).toLocaleString()}</span>
             </div>
-            <button class="secondary-btn" style="width: auto; padding: 2px 5px;">⬇</button>
+            <div class="history-actions">
+                <button class="secondary-btn icon-btn download-btn" title="Download JSON">⬇</button>
+                <button class="secondary-btn icon-btn delete-btn" title="Delete">✖</button>
+            </div>
         `;
-        div.querySelector('button').addEventListener('click', (e) => {
+        
+        // Download Handler
+        div.querySelector('.download-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             downloadJSON(item.data, item.filename);
         });
+
+        // Delete Handler
+        div.querySelector('.delete-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await deleteHistoryItem(index);
+        });
+
         historyList.appendChild(div);
     });
+}
+
+async function deleteHistoryItem(index) {
+    const result = await chrome.storage.local.get(['history']);
+    const history = result.history || [];
+    
+    if (index >= 0 && index < history.length) {
+        history.splice(index, 1);
+        await chrome.storage.local.set({ history });
+        renderHistory();
+    }
 }
 
 /**

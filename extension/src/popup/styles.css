@@ -75,6 +75,13 @@ button {
   cursor: pointer;
   transition: all 0.1s;
   border: 2px solid transparent;
+  width: 100%; /* Make buttons full width by default */
+  box-sizing: border-box;
+}
+
+#grabBtn {
+  margin-top: 15px;
+  margin-bottom: 15px;
 }
 
 button:hover {
@@ -90,11 +97,99 @@ button:active {
   box-shadow: none;
 }
 
+.secondary-btn {
+  font-size: 0.9rem;
+  padding: 0.5rem;
+  background-color: var(--secondary-color);
+  color: #000;
+}
+
+.secondary-btn:hover {
+  color: var(--secondary-color);
+  border-color: var(--secondary-color);
+  box-shadow: 4px 4px 0px var(--secondary-color);
+}
+
+.danger-btn {
+  font-size: 0.9rem;
+  padding: 0.8rem;
+  background-color: #ff0000; /* Red */
+  color: #fff;
+  margin-top: 10px;
+}
+
+.danger-btn:hover {
+  color: #ff0000;
+  border-color: #ff0000;
+  box-shadow: 4px 4px 0px #ff0000;
+}
+
 #status {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--secondary-color);
   min-height: 1.2em;
+  margin-bottom: 10px;
+}
+
+/* History Styles */
+.history-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  border: 1px solid #333;
+}
+
+.history-item {
+  padding: 10px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #111;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-info {
+  flex-grow: 1;
+  overflow: hidden;
+  margin-right: 10px;
+}
+
+.history-date {
+  font-size: 0.7rem;
+  color: #888;
+}
+
+.history-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  padding: 5px 8px;
+  font-size: 1rem;
+  width: auto;
+  min-width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-btn {
+  background-color: #333;
+  color: #ff3300;
+}
+
+.delete-btn:hover {
+  background-color: #ff3300;
+  color: #000;
+  border-color: #ff3300;
+  box-shadow: 2px 2px 0px #ff3300;
 }
 
 /* Preview Styles */
