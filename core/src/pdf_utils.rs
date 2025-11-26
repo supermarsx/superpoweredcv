@@ -251,21 +251,64 @@ pub fn add_link_annotation(
     Ok(())
 }
 
-/// Adds a JavaScript OpenAction to the document.
-pub fn add_javascript_action(doc: &mut Document, script: &str) -> Result<()> {
-    let action = dictionary! {
-        "Type" => "Action",
+/// Adds a JavaScript action to the PDF's OpenAction.
+pub fn add_javascript_action(doc: &mut Document, js: &str) -> Result<()> {
+    let js_action = doc.add_object(dictionary! {
         "S" => "JavaScript",
-        "JS" => Object::string_literal(script),
-    };
+        "JS" => Object::String(js.into(), lopdf::StringFormat::Literal),
+    });
 
-    let action_id = doc.add_object(action);
-
-    // Set OpenAction in Catalog
-    let catalog_id = doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
-    let catalog = doc.get_object_mut(catalog_id).unwrap().as_dict_mut().unwrap();
-    
-    catalog.set("OpenAction", Object::Reference(action_id));
-
+    doc.trailer.set("OpenAction", js_action);
     Ok(())
+}
+
+/// Extracts text from a PDF file (simplified).
+pub fn extract_text_from_pdf(path: &std::path::Path) -> Result<String> {
+    let doc = Document::load(path).map_err(|e| AnalysisError::PdfError(e.to_string()))?;
+    let mut text = String::new();
+
+    for page_id in doc.page_iter() {
+        let content = doc.get_page_content(page_id).map_err(|e| AnalysisError::PdfError(e.to_string()))?;
+        let content = Content::decode(&content).map_err(|e| AnalysisError::PdfError(e.to_string()))?;
+        
+        for operation in content.operations {
+            match operation.operator.as_str() {
+                "Tj" | "TJ" => {
+                    // Extract text from Tj (show text) and TJ (show text with spacing)
+                    for operand in operation.operands {
+                        match operand {
+                            Object::String(bytes, _) => {
+                                if let Ok(s) = std::str::from_utf8(&bytes) {
+                                    text.push_str(s);
+                                } else {
+                                    // Try lossy
+                                    text.push_str(&String::from_utf8_lossy(&bytes));
+                                }
+                            }
+                            Object::Array(arr) => {
+                                for item in arr {
+                                    if let Object::String(bytes, _) = item {
+                                        if let Ok(s) = std::str::from_utf8(&bytes) {
+                                            text.push_str(s);
+                                        } else {
+                                            text.push_str(&String::from_utf8_lossy(&bytes));
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    text.push(' '); // Add space between text blocks
+                }
+                "ET" => {
+                    text.push('\n'); // End of text object
+                }
+                _ => {}
+            }
+        }
+        text.push('\n'); // End of page
+    }
+
+    Ok(text)
 }

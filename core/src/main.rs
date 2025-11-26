@@ -333,11 +333,11 @@ fn run_demo_scenario() {
         ],
         // Configure the target pipeline (simulated)
         pipeline: PipelineConfig {
-            pipeline_type: PipelineType::HttpLlm {
-                endpoint: "https://example-ats-llm/api/score".into(),
-                prompt_template: Some("prompts/ats_prompt.txt".into()),
+            pipeline_type: PipelineType::LocalPrompt {
+                model: Some("local-sim".into()),
+                prompt_template: None,
             },
-            target: Some("candidate_scoring_service_v2".into()),
+            target: Some("local_simulation".into()),
         },
         // Define metrics to track
         metrics: vec![
@@ -377,6 +377,16 @@ fn print_report(report: &superpoweredcv::analysis::ScenarioReport) {
         if let Some(hash) = &variant.variant_hash {
             println!("   Hash: {}", hash);
         }
+        if let Some(sample) = &variant.llm_response_sample {
+            println!("   Extracted Text Sample: {}", sample.replace('\n', " "));
+        }
+        if !variant.notes.is_empty() {
+            println!("   Notes:");
+            for note in &variant.notes {
+                println!("    * {}", note);
+            }
+        }
+        println!("");
     }
 }
 

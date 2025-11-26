@@ -178,6 +178,9 @@ pub enum ProfileConfig {
         padding_tokens_after: usize,
         /// Style of padding.
         padding_style: PaddingStyle,
+        /// Content configuration.
+        #[serde(default)]
+        content: InjectionContent,
     },
     /// Inline job advertisement injection.
     InlineJobAd {
@@ -187,6 +190,9 @@ pub enum ProfileConfig {
         placement: JobAdPlacement,
         /// Ratio of the ad to include.
         ad_excerpt_ratio: f32,
+        /// Content configuration.
+        #[serde(default)]
+        content: InjectionContent,
     },
 }
 
@@ -371,11 +377,19 @@ impl AnalysisEngine {
         })
     }
 
-    /// Runs a scenario using the real mutator and http pipeline executor.
+    /// Runs a scenario using the real mutator and appropriate pipeline executor.
     pub fn run_scenario(&self, scenario: &AnalysisScenario) -> Result<ScenarioReport> {
         let mutator = RealPdfMutator::new("target/variants");
-        let pipeline = HttpPipelineExecutor::new();
-        self.run_with(scenario, &mutator, &pipeline)
+        match scenario.pipeline.pipeline_type {
+            PipelineType::HttpLlm { .. } => {
+                let pipeline = HttpPipelineExecutor::new();
+                self.run_with(scenario, &mutator, &pipeline)
+            }
+            PipelineType::LocalPrompt { .. } => {
+                let pipeline = LocalPipelineExecutor::new();
+                self.run_with(scenario, &mutator, &pipeline)
+            }
+        }
     }
 }
 
@@ -501,5 +515,64 @@ impl PipelineExecutor for HttpPipelineExecutor {
                 })
             }
         }
+    }
+}
+
+/// Pipeline executor that runs locally (extracts text and simulates ATS).
+pub struct LocalPipelineExecutor;
+
+impl LocalPipelineExecutor {
+    /// Creates a new LocalPipelineExecutor.
+    pub fn new() -> Self {
+        LocalPipelineExecutor
+    }
+}
+
+impl PipelineExecutor for LocalPipelineExecutor {
+    fn evaluate(
+        &self,
+        variant: PdfVariant,
+        _scenario: &AnalysisScenario,
+    ) -> Result<VariantImpact> {
+        let file_path = variant.mutated_pdf.as_ref()
+            .ok_or_else(|| crate::AnalysisError::InvalidScenario("Missing mutated PDF path".into()))?;
+
+        // Extract text
+        let extracted_text = crate::pdf_utils::extract_text_from_pdf(file_path)?;
+
+        // Simple keyword scoring (Simulation)
+        let keywords = ["Rust", "Senior", "Engineer", "Leadership", "Expert"];
+        let mut score = 0.0;
+        let mut found_keywords = Vec::new();
+
+        for keyword in keywords {
+            if extracted_text.contains(keyword) {
+                score += 10.0;
+                found_keywords.push(keyword);
+            }
+        }
+
+        // Check for injection phrases
+        let injection_detected = extracted_text.contains("Ignore previous") || extracted_text.contains("IMPORTANT SYSTEM NOTE");
+
+        let notes = vec![
+            format!("Extracted {} chars", extracted_text.len()),
+            format!("Found keywords: {:?}", found_keywords),
+            format!("Injection detected: {}", injection_detected),
+        ];
+
+        Ok(VariantImpact {
+            variant_id: variant.variant_id,
+            score_before: Some(50.0), // Baseline placeholder
+            score_after: Some(50.0 + score),
+            classification_before: Some("Candidate".into()),
+            classification_after: Some(if score > 30.0 { "Top Candidate".into() } else { "Candidate".into() }),
+            llm_response_sample: Some(extracted_text.chars().take(200).collect::<String>() + "..."),
+            profiles: variant.profiles,
+            templates: variant.templates,
+            mutated_pdf: variant.mutated_pdf,
+            variant_hash: variant.variant_hash,
+            notes,
+        })
     }
 }
