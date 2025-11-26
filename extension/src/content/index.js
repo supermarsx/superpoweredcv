@@ -45,15 +45,51 @@ if (!isNode) {
 }
 
 /**
+ * Helper to wait for a selector to appear.
+ * @param {string} selector 
+ * @param {number} timeout 
+ * @returns {Promise<Element|null>}
+ */
+function waitForSelector(selector, timeout = 5000) {
+    return new Promise((resolve) => {
+        if (document.querySelector(selector)) return resolve(document.querySelector(selector));
+        
+        const observer = new MutationObserver(() => {
+            if (document.querySelector(selector)) {
+                observer.disconnect();
+                resolve(document.querySelector(selector));
+            }
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true });
+        
+        setTimeout(() => {
+            observer.disconnect();
+            resolve(null);
+        }, timeout);
+    });
+}
+
+/**
  * Scrapes the main profile page and identifies sections needing navigation.
  */
 async function scrapeMainProfile() {
     const url = window.location.href;
+    
+    // Wait for the main profile name to appear to ensure page load
+    await waitForSelector('h1', 5000);
+
     const sectionsToScrape = [];
+    
+    // Robust selectors for main profile info
+    const name = getText('h1') || getText('.pv-text-details__left-panel h1') || document.title.split('|')[0].trim();
+    const headline = getText('.text-body-medium.break-words') || getText('.pv-text-details__left-panel .text-body-medium');
+    const location = getText('.text-body-small.inline.t-black--light.break-words') || getText('.pv-text-details__left-panel .text-body-small');
+    
     const profile = {
-        name: getText('h1'),
-        headline: getText('.text-body-medium.break-words'),
-        location: getText('.text-body-small.inline.t-black--light.break-words'),
+        name,
+        headline,
+        location,
         about: getAbout(),
         url: url
     };
