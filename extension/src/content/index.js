@@ -14,16 +14,16 @@ const Logger = {
 };
 
 if (!isNode) {
-    // Prevent multiple injections
-    if (window.hasSuperpoweredCVContentScript) {
-        Logger.info('Content script already loaded');
-    } else {
-        window.hasSuperpoweredCVContentScript = true;
-        
-        /**
-         * Listen for messages from the popup or background.
-         */
-        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // We removed the strict idempotency check (window.hasSuperpoweredCVContentScript)
+    // to allow the background script to re-inject us if the connection is lost (e.g. after extension reload).
+    // The background script manages the "only inject if needed" logic via pings.
+    
+    window.hasSuperpoweredCVContentScript = true; // Mark as present for debugging
+    
+    /**
+     * Listen for messages from the popup or background.
+     */
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (request.action === 'scrape_main') {
                 Logger.info('Received scrape_main request');
                 scrapeMainProfile()
@@ -40,9 +40,8 @@ if (!isNode) {
                 sendResponse({ status: 'alive' });
             }
             return true; // Keep channel open for async response
-        });
-        Logger.info('SuperpoweredCV Content Script Initialized');
-    }
+    });
+    Logger.info('SuperpoweredCV Content Script Initialized');
 }
 
 /**

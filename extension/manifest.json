@@ -8,6 +8,9 @@
     "128": "src/assets/icon.png"
   },
   "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "host_permissions": [
+    "https://www.linkedin.com/*"
+  ],
   "background": {
     "service_worker": "src/background/index.js"
   },

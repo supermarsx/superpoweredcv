@@ -71,6 +71,13 @@ async function handleStartScrape(tabId) {
             updateStatus(`Reading ${item.key} (waiting ${delay}ms)...`);
             await new Promise(r => setTimeout(r, delay));
 
+            // Ensure script is ready after navigation
+            const sectionReady = await ensureContentScriptReady(tabId);
+            if (!sectionReady) {
+                console.warn(`Skipping ${item.key}: Content script not ready`);
+                continue;
+            }
+
             // Scrape Section
             const sectionResult = await sendMessageToTab(tabId, { action: 'scrape_section', section: item.key });
             if (sectionResult && sectionResult.data) {
@@ -105,13 +112,20 @@ function updateStatus(msg) {
     chrome.runtime.sendMessage({ action: 'progress', message: msg });
 }
 
-function sendMessageToTab(tabId, message) {
+/**
+ * Sends a message to the tab.
+ * @param {number} tabId 
+ * @param {object} message 
+ * @param {boolean} [retry=true] - Whether to retry on failure
+ */
+function sendMessageToTab(tabId, message, retry = true) {
     return new Promise((resolve) => {
         chrome.tabs.sendMessage(tabId, message, (response) => {
             if (chrome.runtime.lastError) {
-                console.warn('Tab message failed:', chrome.runtime.lastError.message);
-                // Retry once after 1s if it's a connection error
-                if (chrome.runtime.lastError.message.includes('Receiving end does not exist')) {
+                const err = chrome.runtime.lastError.message;
+                // Only log if we are not just pinging or if we are out of retries
+                if (retry) {
+                    console.warn(`Tab message failed (${err}), retrying...`);
                     setTimeout(() => {
                         chrome.tabs.sendMessage(tabId, message, (retryResponse) => {
                             if (chrome.runtime.lastError) {
@@ -123,6 +137,7 @@ function sendMessageToTab(tabId, message) {
                         });
                     }, 1000);
                 } else {
+                    // Silent failure for pinging
                     resolve(null);
                 }
             } else {
@@ -145,14 +160,16 @@ function waitForTabLoad(tabId) {
 }
 
 async function ensureContentScriptReady(tabId) {
-    // Try pinging first
-    for (let i = 0; i < 3; i++) {
-        const response = await sendMessageToTab(tabId, { action: 'ping' });
+    const MAX_ATTEMPTS = 10;
+    
+    // 1. Try pinging multiple times
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        const response = await sendMessageToTab(tabId, { action: 'ping' }, false); // No retry, silent fail
         if (response && response.status === 'alive') return true;
         await new Promise(r => setTimeout(r, 200));
     }
 
-    // If ping fails, try injecting
+    // 2. If ping fails, try injecting
     try {
         console.log('Content script not responding, attempting injection...');
         await chrome.scripting.executeScript({
@@ -160,14 +177,18 @@ async function ensureContentScriptReady(tabId) {
             files: ['src/content/index.js']
         });
         
-        // Wait a bit for it to initialize
+        // Wait for initialization
         await new Promise(r => setTimeout(r, 500));
         
-        // Ping again
-        const response = await sendMessageToTab(tabId, { action: 'ping' });
-        return response && response.status === 'alive';
+        // 3. Ping again
+        for (let i = 0; i < 5; i++) {
+            const response = await sendMessageToTab(tabId, { action: 'ping' }, false);
+            if (response && response.status === 'alive') return true;
+            await new Promise(r => setTimeout(r, 200));
+        }
     } catch (e) {
         console.error('Injection failed:', e);
-        return false;
     }
+    
+    return false;
 }
