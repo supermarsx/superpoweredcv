@@ -159,3 +159,64 @@ pub fn generate_pdf(profile: &ScrapedProfile, output: &Path, injection: Option<&
     doc.save(output).map_err(|e| crate::AnalysisError::PdfError(e.to_string()))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_profile() -> ScrapedProfile {
+        ScrapedProfile {
+            name: "Alice Test".into(),
+            headline: "Senior Engineer".into(),
+            location: "London, UK".into(),
+            about: "Experienced software engineer".into(),
+            experience: vec![ScrapedExperience {
+                title: "Senior Engineer".into(),
+                company: "TestCorp".into(),
+                date_range: "2020 - Present".into(),
+                location: "London".into(),
+            }],
+            education: vec![ScrapedEducation {
+                school: "Oxford University".into(),
+                degree: "M.Sc. Computer Science".into(),
+            }],
+            skills: vec!["Rust".into(), "Python".into()],
+            url: "https://linkedin.com/in/alicetest".into(),
+        }
+    }
+
+    #[test]
+    fn test_generate_pdf_clean() {
+        let dir = std::env::temp_dir().join("superpoweredcv_gen_tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("clean.pdf");
+
+        let profile = sample_profile();
+        generate_pdf(&profile, &path, None).expect("generate clean PDF");
+        assert!(path.exists());
+        let meta = std::fs::metadata(&path).unwrap();
+        assert!(meta.len() > 0, "Generated PDF should not be empty");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_generate_pdf_with_injection() {
+        let dir = std::env::temp_dir().join("superpoweredcv_gen_tests_inj");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("injected.pdf");
+
+        let profile = sample_profile();
+        let configs = vec![ProfileConfig::VisibleMetaBlock {
+            position: InjectionPosition::Footer,
+            intensity: Intensity::Aggressive,
+            content: crate::attacks::InjectionContent::default(),
+        }];
+        generate_pdf(&profile, &path, Some(&configs)).expect("generate PDF with injection");
+        assert!(path.exists());
+        let meta = std::fs::metadata(&path).unwrap();
+        assert!(meta.len() > 0, "Generated PDF should not be empty");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

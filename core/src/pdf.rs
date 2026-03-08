@@ -171,8 +171,10 @@ impl PdfMutator for RealPdfMutator {
                 }
                 ProfileConfig::InlineJobAd { job_ad_source, placement, ad_excerpt_ratio: _, content } => {
                     let ad_text = match job_ad_source {
-                        crate::attacks::JobAdSource::Inline => "Senior Software Engineer required. Must have Rust experience.".to_string(), // Placeholder
-                        _ => "Job Ad Content Placeholder".to_string(),
+                        crate::attacks::JobAdSource::Inline => {
+                            content.job_description.clone().unwrap_or_else(|| "Senior Software Engineer required. Must have Rust experience.".to_string())
+                        }
+                        _ => content.job_description.clone().unwrap_or_else(|| "Job Ad Content".to_string()),
                     };
                     let text_to_inject = get_injection_text(content, default_text);
                     let full_text = format!("{} {}", text_to_inject, ad_text);
@@ -304,7 +306,7 @@ impl PdfMutator for StubPdfMutator {
     }
 }
 
-fn get_injection_text(content: &InjectionContent, default: &str) -> String {
+pub(crate) fn get_injection_text(content: &InjectionContent, default: &str) -> String {
     if !content.phrases.is_empty() {
         content.phrases.join("\n")
     } else {
@@ -312,7 +314,7 @@ fn get_injection_text(content: &InjectionContent, default: &str) -> String {
     }
 }
 
-fn generate_noise(before: Option<u32>, after: Option<u32>, style: &crate::attacks::PaddingStyle) -> String {
+pub(crate) fn generate_noise(before: Option<u32>, after: Option<u32>, style: &crate::attacks::PaddingStyle) -> String {
     let count_before = before.unwrap_or(0);
     let count_after = after.unwrap_or(0);
     let total = count_before + count_after;
@@ -334,5 +336,212 @@ fn generate_noise(before: Option<u32>, after: Option<u32>, style: &crate::attack
             let words = ["requirements", "qualifications", "responsibilities", "role", "candidate", "apply"];
             (0..total).map(|i| words[(i as usize) % words.len()]).collect::<Vec<_>>().join(" ")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::attacks::{
+        InjectionContent, InjectionPosition, Intensity, LowVisibilityPalette,
+        OffpageOffset, PaddingStyle, ProfileConfig, StructuralTarget,
+    };
+    use crate::attacks::templates::{
+        ControlType, GenerationType, InjectionTemplate, TemplateSeverity, TemplateStyle,
+    };
+
+    fn sample_template() -> InjectionTemplate {
+        InjectionTemplate {
+            id: "test_tmpl".into(),
+            severity: TemplateSeverity::Low,
+            goal: "test".into(),
+            style: TemplateStyle::Subtle,
+            control: ControlType::Plain,
+            text_template: "Test injection text".into(),
+            phrases: vec![],
+            generation_type: GenerationType::Static,
+            job_description: None,
+        }
+    }
+
+    fn setup(name: &str) -> (PathBuf, PathBuf, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("superpoweredcv_pdf_{}", name));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let base_path = dir.join("base.pdf");
+        let mut doc = crate::pdf_utils::create_blank_pdf();
+        doc.save(&base_path).unwrap();
+        let out_dir = dir.join("output");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        (dir, base_path, out_dir)
+    }
+
+    #[test]
+    fn test_stub_mutator_creates_output() {
+        let (dir, base, out_dir) = setup("stub");
+        let mutator = StubPdfMutator::new(&out_dir);
+        let result = mutator
+            .mutate(PdfMutationRequest {
+                base_pdf: base,
+                profiles: vec![ProfileConfig::UnderlayText],
+                template: sample_template(),
+                variant_id: Some("stub_test".into()),
+            })
+            .expect("stub mutate");
+        assert!(result.mutated_pdf.exists());
+        assert!(result.variant_hash.is_some());
+        assert_eq!(result.variant_id, "stub_test");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_real_mutator_visible_meta_block() {
+        let (dir, base, out_dir) = setup("vmb");
+        let mutator = RealPdfMutator::new(&out_dir);
+        let result = mutator
+            .mutate(PdfMutationRequest {
+                base_pdf: base,
+                profiles: vec![ProfileConfig::VisibleMetaBlock {
+                    position: InjectionPosition::Footer,
+                    intensity: Intensity::Soft,
+                    content: InjectionContent::default(),
+                }],
+                template: sample_template(),
+                variant_id: Some("vmb_test".into()),
+            })
+            .expect("real mutate visible meta block");
+        assert!(result.mutated_pdf.exists());
+        assert!(result.notes.iter().any(|n| n.contains("visible block")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_real_mutator_low_visibility() {
+        let (dir, base, out_dir) = setup("lv");
+        let mutator = RealPdfMutator::new(&out_dir);
+        let result = mutator
+            .mutate(PdfMutationRequest {
+                base_pdf: base,
+                profiles: vec![ProfileConfig::LowVisibilityBlock {
+                    font_size_min: 1,
+                    font_size_max: 3,
+                    color_profile: LowVisibilityPalette::OffWhite,
+                    content: InjectionContent::default(),
+                }],
+                template: sample_template(),
+                variant_id: Some("lv_test".into()),
+            })
+            .expect("real mutate low visibility");
+        assert!(result.mutated_pdf.exists());
+        assert!(result.notes.iter().any(|n| n.contains("low visibility")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_real_mutator_offpage_layer() {
+        let (dir, base, out_dir) = setup("opl");
+        let mutator = RealPdfMutator::new(&out_dir);
+        let result = mutator
+            .mutate(PdfMutationRequest {
+                base_pdf: base,
+                profiles: vec![ProfileConfig::OffpageLayer {
+                    offset_strategy: OffpageOffset::RightClip,
+                    content: InjectionContent::default(),
+                }],
+                template: sample_template(),
+                variant_id: Some("opl_test".into()),
+            })
+            .expect("real mutate offpage layer");
+        assert!(result.mutated_pdf.exists());
+        assert!(result.notes.iter().any(|n| n.contains("offpage")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_real_mutator_structural_fields() {
+        let (dir, base, out_dir) = setup("sf");
+        let mutator = RealPdfMutator::new(&out_dir);
+        let result = mutator
+            .mutate(PdfMutationRequest {
+                base_pdf: base,
+                profiles: vec![ProfileConfig::StructuralFields {
+                    targets: vec![StructuralTarget::AltText, StructuralTarget::PdfTag],
+                }],
+                template: sample_template(),
+                variant_id: Some("sf_test".into()),
+            })
+            .expect("real mutate structural fields");
+        assert!(result.mutated_pdf.exists());
+        assert!(result.notes.iter().any(|n| n.contains("Injected")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_real_mutator_tracking_pixel() {
+        let (dir, base, out_dir) = setup("tp");
+        let mutator = RealPdfMutator::new(&out_dir);
+        let result = mutator
+            .mutate(PdfMutationRequest {
+                base_pdf: base,
+                profiles: vec![ProfileConfig::TrackingPixel {
+                    url: "https://example.com/pixel".into(),
+                }],
+                template: sample_template(),
+                variant_id: Some("tp_test".into()),
+            })
+            .expect("real mutate tracking pixel");
+        assert!(result.mutated_pdf.exists());
+        assert!(result.notes.iter().any(|n| n.contains("tracking link")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_real_mutator_code_injection() {
+        let (dir, base, out_dir) = setup("ci");
+        let mutator = RealPdfMutator::new(&out_dir);
+        let result = mutator
+            .mutate(PdfMutationRequest {
+                base_pdf: base,
+                profiles: vec![ProfileConfig::CodeInjection {
+                    payload: "app.alert('hello')".into(),
+                }],
+                template: sample_template(),
+                variant_id: Some("ci_test".into()),
+            })
+            .expect("real mutate code injection");
+        assert!(result.mutated_pdf.exists());
+        assert!(result.notes.iter().any(|n| n.contains("JavaScript")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_get_injection_text_with_phrases() {
+        let content = InjectionContent {
+            phrases: vec!["phrase one".into(), "phrase two".into()],
+            generation_type: GenerationType::Static,
+            job_description: None,
+        };
+        let text = get_injection_text(&content, "default");
+        assert_eq!(text, "phrase one\nphrase two");
+    }
+
+    #[test]
+    fn test_get_injection_text_without_phrases() {
+        let content = InjectionContent::default();
+        let text = get_injection_text(&content, "fallback text");
+        assert_eq!(text, "fallback text");
+    }
+
+    #[test]
+    fn test_generate_noise() {
+        let noise = generate_noise(Some(4), Some(4), &PaddingStyle::Lorem);
+        assert!(!noise.is_empty());
+        assert!(noise.contains("lorem"));
+
+        let noise2 = generate_noise(Some(3), None, &PaddingStyle::ResumeLike);
+        assert!(noise2.contains("experience"));
+
+        let empty = generate_noise(None, None, &PaddingStyle::Lorem);
+        assert!(empty.is_empty());
     }
 }

@@ -72,3 +72,51 @@ pub enum LogField {
     /// The hash of the generated PDF variant.
     PdfVariantHash,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pipeline_config_target() {
+        let config_with = PipelineConfig {
+            pipeline_type: PipelineType::HttpLlm {
+                endpoint: "https://example.com".into(),
+                prompt_template: None,
+            },
+            target: Some("my-ats".into()),
+        };
+        assert_eq!(config_with.target(), Some("my-ats"));
+
+        let config_without = PipelineConfig {
+            pipeline_type: PipelineType::LocalPrompt {
+                model: None,
+                prompt_template: None,
+            },
+            target: None,
+        };
+        assert_eq!(config_without.target(), None);
+    }
+
+    #[test]
+    fn test_metric_spec_serialization() {
+        let specs = vec![
+            MetricSpec {
+                name: "score_diff".into(),
+                metric_type: MetricType::NumericDiff,
+                baseline: Some(50.0),
+            },
+            MetricSpec {
+                name: "label_change".into(),
+                metric_type: MetricType::LabelChange,
+                baseline: None,
+            },
+        ];
+
+        for spec in &specs {
+            let json = serde_json::to_string(spec).expect("serialize MetricSpec");
+            let deser: MetricSpec = serde_json::from_str(&json).expect("deserialize MetricSpec");
+            assert_eq!(spec, &deser);
+        }
+    }
+}

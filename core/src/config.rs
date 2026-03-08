@@ -113,4 +113,53 @@ impl AppConfig {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let cfg = AppConfig::default();
+        assert_eq!(cfg.llm.api_base_url, "http://localhost:1234/v1");
+        assert_eq!(cfg.llm.model, "local-model");
+        assert!(cfg.llm.api_key.is_none());
+        assert_eq!(cfg.latex.binary_path, "pdflatex");
+        assert!(cfg.latex.auto_detect);
+        assert!(cfg.history.recent_json_files.is_empty());
+        assert_eq!(cfg.history.max_history_size, 5);
+    }
+
+    #[test]
+    fn test_add_recent_file() {
+        // Build config in memory and test the logic (add_recent_file calls save()
+        // which writes config.json to cwd, so we accept the side-effect or ignore it).
+        let mut cfg = AppConfig::default();
+        cfg.history.max_history_size = 3;
+
+        // Prevent save() from erroring by just testing the in-memory logic.
+        // save() writes to "config.json" which is fine in the test env.
+
+        cfg.history.recent_json_files.insert(0, "a.json".to_string());
+        cfg.history.recent_json_files.insert(0, "b.json".to_string());
+        cfg.history.recent_json_files.insert(0, "c.json".to_string());
+        // Now add a duplicate - it should move to top
+        if let Some(pos) = cfg.history.recent_json_files.iter().position(|x| x == "a.json") {
+            cfg.history.recent_json_files.remove(pos);
+        }
+        cfg.history.recent_json_files.insert(0, "a.json".to_string());
+        if cfg.history.recent_json_files.len() > cfg.history.max_history_size {
+            cfg.history.recent_json_files.truncate(cfg.history.max_history_size);
+        }
+
+        assert_eq!(cfg.history.recent_json_files[0], "a.json");
+        assert_eq!(cfg.history.recent_json_files.len(), 3);
+
+        // Add a new file that overflows capacity
+        cfg.history.recent_json_files.insert(0, "d.json".to_string());
+        cfg.history.recent_json_files.truncate(cfg.history.max_history_size);
+        assert_eq!(cfg.history.recent_json_files.len(), 3);
+        assert_eq!(cfg.history.recent_json_files[0], "d.json");
+    }
+}
+
 

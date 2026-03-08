@@ -373,3 +373,96 @@ impl PipelineExecutor for LocalPipelineExecutor {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::attacks::templates::default_templates;
+    use crate::attacks::{InjectionPosition, Intensity, InjectionContent, ProfileConfig};
+    use crate::pipeline::{PipelineConfig, PipelineType};
+
+    fn make_scenario(plans: Vec<AnalysisPlan>) -> AnalysisScenario {
+        AnalysisScenario {
+            scenario_id: "test-scenario".into(),
+            base_pdf: std::path::PathBuf::from("/nonexistent/base.pdf"),
+            plans,
+            pipeline: PipelineConfig {
+                pipeline_type: PipelineType::LocalPrompt {
+                    model: None,
+                    prompt_template: None,
+                },
+                target: Some("test-target".into()),
+            },
+            metrics: vec![],
+            logging: None,
+        }
+    }
+
+    #[test]
+    fn test_engine_missing_template() {
+        let engine = AnalysisEngine::new(default_templates());
+        let scenario = make_scenario(vec![AnalysisPlan {
+            profile: ProfileConfig::VisibleMetaBlock {
+                position: InjectionPosition::Header,
+                intensity: Intensity::Soft,
+                content: InjectionContent::default(),
+            },
+            template_id: "nonexistent_template".into(),
+        }]);
+
+        let noop = NoopPipelineExecutor;
+        let mutator = crate::pdf::StubPdfMutator::new(std::env::temp_dir().join("superpoweredcv_analysis_test"));
+        let result = engine.run_with(&scenario, &mutator, &noop);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            format!("{}", err).contains("not found"),
+            "Expected MissingTemplate error, got: {}",
+            err
+        );
+        let _ = std::fs::remove_dir_all(std::env::temp_dir().join("superpoweredcv_analysis_test"));
+    }
+
+    #[test]
+    fn test_engine_empty_plans() {
+        let engine = AnalysisEngine::new(default_templates());
+        let scenario = make_scenario(vec![]);
+
+        let noop = NoopPipelineExecutor;
+        let mutator = crate::pdf::StubPdfMutator::new(std::env::temp_dir().join("superpoweredcv_analysis_empty"));
+        let result = engine.run_with(&scenario, &mutator, &noop);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            format!("{}", err).contains("at least one plan"),
+            "Expected InvalidScenario error, got: {}",
+            err
+        );
+        let _ = std::fs::remove_dir_all(std::env::temp_dir().join("superpoweredcv_analysis_empty"));
+    }
+
+    #[test]
+    fn test_noop_executor() {
+        let variant = PdfVariant {
+            variant_id: "v1".into(),
+            profiles: vec!["pdf.visible_meta_block".into()],
+            templates: vec!["soft_bias".into()],
+            base_pdf: std::path::PathBuf::from("base.pdf"),
+            mutated_pdf: Some(std::path::PathBuf::from("mutated.pdf")),
+            variant_hash: Some("abc123".into()),
+        };
+
+        let scenario = make_scenario(vec![AnalysisPlan {
+            profile: ProfileConfig::UnderlayText,
+            template_id: "soft_bias".into(),
+        }]);
+
+        let noop = NoopPipelineExecutor;
+        let impact = noop.evaluate(variant.clone(), &scenario).expect("noop evaluate");
+        assert_eq!(impact.variant_id, "v1");
+        assert!(impact.score_before.is_none());
+        assert!(impact.score_after.is_none());
+        assert_eq!(impact.profiles, vec!["pdf.visible_meta_block"]);
+        assert!(impact.notes.iter().any(|n| n.contains("noop")));
+    }
+}
