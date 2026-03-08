@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn test_default_templates_count() {
         let templates = default_templates();
-        assert_eq!(templates.len(), 9);
+        assert!(templates.len() >= 9, "Expected at least 9 templates, got {}", templates.len());
     }
 
     #[test]

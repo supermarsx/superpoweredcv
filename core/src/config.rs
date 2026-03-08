@@ -131,34 +131,27 @@ mod tests {
 
     #[test]
     fn test_add_recent_file() {
-        // Build config in memory and test the logic (add_recent_file calls save()
-        // which writes config.json to cwd, so we accept the side-effect or ignore it).
         let mut cfg = AppConfig::default();
         cfg.history.max_history_size = 3;
 
-        // Prevent save() from erroring by just testing the in-memory logic.
-        // save() writes to "config.json" which is fine in the test env.
+        cfg.add_recent_file("a.json");
+        cfg.add_recent_file("b.json");
+        cfg.add_recent_file("c.json");
+        assert_eq!(cfg.history.recent_json_files[0], "c.json");
+        assert_eq!(cfg.history.recent_json_files.len(), 3);
 
-        cfg.history.recent_json_files.insert(0, "a.json".to_string());
-        cfg.history.recent_json_files.insert(0, "b.json".to_string());
-        cfg.history.recent_json_files.insert(0, "c.json".to_string());
-        // Now add a duplicate - it should move to top
-        if let Some(pos) = cfg.history.recent_json_files.iter().position(|x| x == "a.json") {
-            cfg.history.recent_json_files.remove(pos);
-        }
-        cfg.history.recent_json_files.insert(0, "a.json".to_string());
-        if cfg.history.recent_json_files.len() > cfg.history.max_history_size {
-            cfg.history.recent_json_files.truncate(cfg.history.max_history_size);
-        }
-
+        // Add a duplicate - it should move to top
+        cfg.add_recent_file("a.json");
         assert_eq!(cfg.history.recent_json_files[0], "a.json");
         assert_eq!(cfg.history.recent_json_files.len(), 3);
 
         // Add a new file that overflows capacity
-        cfg.history.recent_json_files.insert(0, "d.json".to_string());
-        cfg.history.recent_json_files.truncate(cfg.history.max_history_size);
+        cfg.add_recent_file("d.json");
         assert_eq!(cfg.history.recent_json_files.len(), 3);
         assert_eq!(cfg.history.recent_json_files[0], "d.json");
+
+        // Clean up the config.json file written by save()
+        let _ = std::fs::remove_file("config.json");
     }
 }
 

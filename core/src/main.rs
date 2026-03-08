@@ -636,7 +636,9 @@ fn generate_preview(output: &PathBuf) {
         },
     ];
 
-    let mutator = RealPdfMutator::new(output.parent().unwrap_or(std::path::Path::new(".")));
+    let fallback_dir = PathBuf::from(".");
+    let output_dir = output.parent().unwrap_or(&fallback_dir);
+    let mutator = RealPdfMutator::new(output_dir);
     let request = PdfMutationRequest {
         base_pdf: temp_base,
         profiles,
