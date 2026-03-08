@@ -1,4 +1,4 @@
-use crate::pdf::{PdfMutationRequest, PdfMutator, StubPdfMutator};
+use crate::pdf::{PdfMutationRequest, PdfMutator, RealPdfMutator};
 use crate::pipeline::{LoggingConfig, MetricSpec, PipelineConfig};
 use crate::attacks::templates::InjectionTemplate;
 use crate::{Result, RedTeamError};
@@ -171,9 +171,9 @@ impl RedTeamEngine {
         })
     }
 
-    /// Runs a scenario using the default stub mutator and no-op pipeline.
+    /// Runs a scenario using the real mutator and no-op pipeline.
     pub fn run_scenario(&self, scenario: &InjectionScenario) -> Result<ScenarioReport> {
-        let mutator = StubPdfMutator::new("target/variants");
+        let mutator = RealPdfMutator::new("target/variants");
         let pipeline = NoopPipelineExecutor;
         self.run_with(scenario, &mutator, &pipeline)
     }
