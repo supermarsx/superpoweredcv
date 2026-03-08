@@ -156,7 +156,7 @@ fn render_preview_panel(ui: &mut egui::Ui, latex_resume: &LatexResume) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use superpoweredcv::latex::{ResumeSection, SectionItem};
+    use crate::latex::{ResumeSection, SectionItem};
 
     #[test]
     fn test_latex_resume_structure() {

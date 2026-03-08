@@ -203,3 +203,83 @@ pub struct UserProfile {
     /// AI/ATS specific metadata.
     pub ai_metadata: Option<AiAtsMetadata>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_user_profile() -> UserProfile {
+        UserProfile {
+            id: "test-id-1".into(),
+            name: "Jane Doe".into(),
+            headline: Some("Software Engineer".into()),
+            location: Some("Berlin, Germany".into()),
+            summary: Some("Experienced developer".into()),
+            contact: ContactInfo {
+                email: Some("jane@example.com".into()),
+                phone: None,
+                websites: vec![],
+                linkedin: Some("https://linkedin.com/in/janedoe".into()),
+                github: None,
+                location: Some("Berlin".into()),
+            },
+            experience: vec![Experience {
+                title: "Senior Engineer".into(),
+                company: "ACME Corp".into(),
+                location: Some("Berlin".into()),
+                start_date: Some("Jan 2020".into()),
+                end_date: Some("Present".into()),
+                summary: None,
+                bullets: vec!["Led platform team".into()],
+                tech_stack: vec!["Rust".into(), "Python".into()],
+            }],
+            education: vec![Education {
+                institution: "MIT".into(),
+                degree: Some("B.S.".into()),
+                field_of_study: Some("Computer Science".into()),
+                start_date: None,
+                end_date: Some("2019".into()),
+                summary: None,
+            }],
+            skills: vec![Skill {
+                name: "Rust".into(),
+                category: Some("Languages".into()),
+                proficiency: Some("Expert".into()),
+            }],
+            projects: vec![],
+            certifications: vec![],
+            publications: vec![],
+            volunteering: vec![],
+            languages: vec![Language {
+                name: "English".into(),
+                proficiency: Some("Native".into()),
+            }],
+            meta: None,
+            ai_metadata: None,
+        }
+    }
+
+    #[test]
+    fn test_user_profile_serialization() {
+        let profile = sample_user_profile();
+        let json = serde_json::to_string(&profile).expect("serialize");
+        let deser: UserProfile = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(profile, deser);
+    }
+
+    #[test]
+    fn test_seniority_serialization() {
+        let variants = vec![
+            Seniority::Junior,
+            Seniority::Mid,
+            Seniority::Senior,
+            Seniority::Lead,
+            Seniority::Principal,
+        ];
+        for s in variants {
+            let json = serde_json::to_string(&s).expect("serialize seniority");
+            let deser: Seniority = serde_json::from_str(&json).expect("deserialize seniority");
+            assert_eq!(s, deser);
+        }
+    }
+}

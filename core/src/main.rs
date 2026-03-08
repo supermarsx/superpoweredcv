@@ -162,7 +162,7 @@ fn main() {
         }
         Some(Commands::Preview { output }) => {
             println!("Generating preview at {:?}", output);
-            // Placeholder for preview generation
+            generate_preview(output);
         }
         Some(Commands::Docs) => {
             if open::that("https://github.com/supermarsx/superpoweredcv").is_err() {
@@ -587,5 +587,77 @@ fn ensure_demo_pdf(path: &PathBuf) {
         });
         doc.trailer.set("Root", catalog_id);
         doc.save(path).unwrap();
+    }
+}
+
+fn generate_preview(output: &PathBuf) {
+    if let Some(parent) = output.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            eprintln!("Failed to create output directory: {}", e);
+            return;
+        }
+    }
+
+    // Create a base PDF to work with
+    let temp_base = std::env::temp_dir().join("superpoweredcv_preview_base.pdf");
+    ensure_demo_pdf(&temp_base);
+
+    // Apply all injection profiles at once to demonstrate the layout
+    let templates = default_templates();
+    let template = templates.first().unwrap().clone();
+
+    let profiles = vec![
+        ProfileConfig::VisibleMetaBlock {
+            position: InjectionPosition::Header,
+            intensity: Intensity::Medium,
+            content: InjectionContent {
+                phrases: vec!["[VISIBLE META BLOCK - Header injection preview]".into()],
+                ..Default::default()
+            },
+        },
+        ProfileConfig::LowVisibilityBlock {
+            font_size_min: 2,
+            font_size_max: 2,
+            color_profile: LowVisibilityPalette::Gray,
+            content: InjectionContent {
+                phrases: vec!["[LOW VISIBILITY BLOCK - Small gray text preview]".into()],
+                ..Default::default()
+            },
+        },
+        ProfileConfig::OffpageLayer {
+            offset_strategy: OffpageOffset::BottomClip,
+            content: InjectionContent {
+                phrases: vec!["[OFFPAGE LAYER - Off-page text preview]".into()],
+                ..Default::default()
+            },
+        },
+        ProfileConfig::StructuralFields {
+            targets: vec![StructuralTarget::XmpMetadata, StructuralTarget::PdfTag],
+        },
+    ];
+
+    let fallback_dir = PathBuf::from(".");
+    let output_dir = output.parent().unwrap_or(&fallback_dir);
+    let mutator = RealPdfMutator::new(output_dir);
+    let request = PdfMutationRequest {
+        base_pdf: temp_base,
+        profiles,
+        template,
+        variant_id: Some(output.file_stem().unwrap().to_string_lossy().to_string()),
+    };
+
+    match mutator.mutate(request) {
+        Ok(res) => {
+            if let Err(e) = std::fs::rename(&res.mutated_pdf, output) {
+                eprintln!("Failed to move preview file: {}", e);
+            } else {
+                println!("Preview PDF generated at {}", output.display());
+                println!("Injection notes:");
+                for note in &res.notes {
+                    println!("  * {}", note);
+                }
+            }
+        }
+        Err(e) => eprintln!("Failed to generate preview: {}", e),
     }
 }

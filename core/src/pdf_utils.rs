@@ -312,3 +312,52 @@ pub fn extract_text_from_pdf(path: &std::path::Path) -> Result<String> {
 
     Ok(text)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_blank_pdf() {
+        let doc = create_blank_pdf();
+        let pages = doc.get_pages();
+        assert_eq!(pages.len(), 1, "blank PDF should have one page");
+    }
+
+    #[test]
+    fn test_add_text_to_page() {
+        let mut doc = create_blank_pdf();
+        let result = add_text_to_page(&mut doc, 1, "hello world", 50.0, 700.0, 12.0, 0.0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_prepend_text_to_page() {
+        let mut doc = create_blank_pdf();
+        // First add some content so there is something to prepend before
+        add_text_to_page(&mut doc, 1, "existing", 50.0, 700.0, 12.0, 0.0).unwrap();
+        let result = prepend_text_to_page(&mut doc, 1, "prepended", 50.0, 400.0, 10.0, 1.0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_extract_text_from_pdf() {
+        let mut doc = create_blank_pdf();
+        add_text_to_page(&mut doc, 1, "SuperpoweredCV Test Content", 50.0, 700.0, 12.0, 0.0)
+            .unwrap();
+
+        let dir = std::env::temp_dir().join("superpoweredcv_pdfutils_tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("extract_test.pdf");
+        doc.save(&path).unwrap();
+
+        let text = extract_text_from_pdf(&path).expect("extract text");
+        assert!(
+            text.contains("SuperpoweredCV Test Content"),
+            "Extracted text should contain the injected content, got: {}",
+            text
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

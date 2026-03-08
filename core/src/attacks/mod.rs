@@ -209,3 +209,110 @@ impl ProfileConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_profile_config_ids() {
+        let cases: Vec<(ProfileConfig, &str)> = vec![
+            (
+                ProfileConfig::VisibleMetaBlock {
+                    position: InjectionPosition::Header,
+                    intensity: Intensity::Soft,
+                    content: InjectionContent::default(),
+                },
+                "pdf.visible_meta_block",
+            ),
+            (
+                ProfileConfig::LowVisibilityBlock {
+                    font_size_min: 1,
+                    font_size_max: 4,
+                    color_profile: LowVisibilityPalette::Gray,
+                    content: InjectionContent::default(),
+                },
+                "pdf.low_visibility_block",
+            ),
+            (
+                ProfileConfig::OffpageLayer {
+                    offset_strategy: OffpageOffset::BottomClip,
+                    content: InjectionContent::default(),
+                },
+                "pdf.offpage_layer",
+            ),
+            (ProfileConfig::UnderlayText, "pdf.underlay_text"),
+            (
+                ProfileConfig::StructuralFields {
+                    targets: vec![StructuralTarget::AltText],
+                },
+                "pdf.structural_fields",
+            ),
+            (
+                ProfileConfig::PaddingNoise {
+                    padding_tokens_before: 10,
+                    padding_tokens_after: 10,
+                    padding_style: PaddingStyle::Lorem,
+                    content: InjectionContent::default(),
+                },
+                "pdf.padding_noise",
+            ),
+            (
+                ProfileConfig::InlineJobAd {
+                    job_ad_source: JobAdSource::Inline,
+                    placement: JobAdPlacement::Front,
+                    ad_excerpt_ratio: 0.5,
+                    content: InjectionContent::default(),
+                },
+                "pdf.inline_job_ad",
+            ),
+            (
+                ProfileConfig::TrackingPixel {
+                    url: "https://example.com".into(),
+                },
+                "pdf.tracking_pixel",
+            ),
+            (
+                ProfileConfig::CodeInjection {
+                    payload: "alert(1)".into(),
+                },
+                "pdf.code_injection",
+            ),
+        ];
+
+        for (config, expected_id) in cases {
+            assert_eq!(config.id(), expected_id, "Mismatch for {:?}", config);
+        }
+    }
+
+    #[test]
+    fn test_injection_content_default() {
+        let content = InjectionContent::default();
+        assert!(content.phrases.is_empty());
+        assert_eq!(content.generation_type, GenerationType::Static);
+        assert!(content.job_description.is_none());
+    }
+
+    #[test]
+    fn test_profile_config_serialization() {
+        let configs = vec![
+            ProfileConfig::VisibleMetaBlock {
+                position: InjectionPosition::Footer,
+                intensity: Intensity::Aggressive,
+                content: InjectionContent::default(),
+            },
+            ProfileConfig::TrackingPixel {
+                url: "https://example.com/track".into(),
+            },
+            ProfileConfig::CodeInjection {
+                payload: "console.log('test')".into(),
+            },
+        ];
+
+        for config in configs {
+            let json = serde_json::to_string(&config).expect("serialize");
+            let deser: ProfileConfig = serde_json::from_str(&json).expect("deserialize");
+            assert_eq!(config, deser);
+        }
+    }
+}

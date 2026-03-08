@@ -113,4 +113,46 @@ impl AppConfig {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let cfg = AppConfig::default();
+        assert_eq!(cfg.llm.api_base_url, "http://localhost:1234/v1");
+        assert_eq!(cfg.llm.model, "local-model");
+        assert!(cfg.llm.api_key.is_none());
+        assert_eq!(cfg.latex.binary_path, "pdflatex");
+        assert!(cfg.latex.auto_detect);
+        assert!(cfg.history.recent_json_files.is_empty());
+        assert_eq!(cfg.history.max_history_size, 5);
+    }
+
+    #[test]
+    fn test_add_recent_file() {
+        let mut cfg = AppConfig::default();
+        cfg.history.max_history_size = 3;
+
+        cfg.add_recent_file("a.json");
+        cfg.add_recent_file("b.json");
+        cfg.add_recent_file("c.json");
+        assert_eq!(cfg.history.recent_json_files[0], "c.json");
+        assert_eq!(cfg.history.recent_json_files.len(), 3);
+
+        // Add a duplicate - it should move to top
+        cfg.add_recent_file("a.json");
+        assert_eq!(cfg.history.recent_json_files[0], "a.json");
+        assert_eq!(cfg.history.recent_json_files.len(), 3);
+
+        // Add a new file that overflows capacity
+        cfg.add_recent_file("d.json");
+        assert_eq!(cfg.history.recent_json_files.len(), 3);
+        assert_eq!(cfg.history.recent_json_files[0], "d.json");
+
+        // Clean up the config.json file written by save()
+        let _ = std::fs::remove_file("config.json");
+    }
+}
+
 
